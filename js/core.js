@@ -1,5 +1,5 @@
 const Info = {
-    'version': "0.9.5",
+    'version': "0.9.6",
 };
 
 /**
@@ -115,11 +115,11 @@ class UpdateHandler {
         let lastVersion = Version.fromString(SyncedStorage.get("version"));
         let currentVersion = Version.fromString(Info.version);
 
-        if (!lastVersion.isSame(currentVersion)) {
+        if (currentVersion.isAfter(lastVersion)) {
             if (SyncedStorage.get("version_show")) {
                 this._showChangelog();
             }
-            this._migrateSettings();
+            this._migrateSettings(lastVersion);
         }
 
         SyncedStorage.set("version", Info.version);
@@ -132,31 +132,15 @@ class UpdateHandler {
                 let logo = ExtensionLayer.getLocalUrl("img/es_128.png");
                 let dialog = `<div class="es_changelog"><img src="${logo}"><div>${changelog}</div></div>`;
                 ExtensionLayer.runInPageContext(
-                    "function() {\
-                        var prompt = ShowConfirmDialog(\"" + Localization.str.update.updated.replace("__version__", Info.version) + "\", '" + dialog + "' , 'OK', '" + Localization.str.close.replace(/'/g, "\\'") + "', '" + Localization.str.update.dont_show.replace(/'/g, "\\'") + "'); \
-						prompt.done(function(result) {\
-							if (result == 'SECONDARY') { window.postMessage({ type: 'es_sendmessage_change', information: [ true ]}, '*'); }\
-						});\
-					}"
+                    `function() {
+                        ShowAlertDialog("${Localization.str.update.updated.replace("__version__", Info.version)}", '${dialog}');
+					}`
                 );
             }
         );
-
-        window.addEventListener("message", function(event) {
-            if (event.source !== window) return;
-            if (event.data.type && (event.data.type === "es_sendmessage_change")) {
-                SyncedStorage.set("version_show", false);
-            }
-        }, false);
     }
 
-    static _migrateSettings() {
-        let oldVersion = SyncedStorage.get("version"); // default is Info.version
-        oldVersion = Version.fromString(oldVersion);
-
-        if (oldVersion.isCurrent()) {
-            return;
-        }
+    static _migrateSettings(oldVersion) {
 
         if (oldVersion.isSameOrBefore("0.9.4")) {
 
@@ -212,7 +196,32 @@ class UpdateHandler {
                 SyncedStorage.remove(oldkey);
             }
             SyncedStorage.set('customize_apppage', settings);
+        } else if (oldVersion.isSameOrBefore("0.9.5")) {
+            SyncedStorage.remove("version");
+            SyncedStorage.remove("showesbg");
+            SyncedStorage.set("hideaboutlinks", SyncedStorage.get("hideinstallsteambutton") && SyncedStorage.get("hideaboutmenu"));
+            SyncedStorage.remove("hideinstallsteambutton");
+            SyncedStorage.remove("hideaboutmenu");
+
+            SyncedStorage.set("user_notes", SyncedStorage.get("wishlist_notes"));
+            SyncedStorage.remove("wishlist_notes");
         }
+
+        if (oldVersion.isSameOrBefore("0.9.5")) {
+            // Update structure for custom profile links to allow multiple
+            let custom_link = {
+                'enabled': SyncedStorage.get('profile_custom'),
+                'name': SyncedStorage.get('profile_custom_name'),
+                'url': SyncedStorage.get('profile_custom_url'),
+                'icon':  SyncedStorage.get('profile_custom_icon'),
+            };
+            SyncedStorage.set('profile_custom_link', [custom_link,]);
+            SyncedStorage.remove('profile_custom');
+            SyncedStorage.remove('profile_custom_name');
+            SyncedStorage.remove('profile_custom_url');
+            SyncedStorage.remove('profile_custom_icon');
+        }
+    
     }
 }
 
@@ -403,13 +412,13 @@ class SyncedStorage {
 SyncedStorage.adapter = chrome.storage.sync || chrome.storage.local;
 SyncedStorage.cache = {};
 SyncedStorage.defaults = {
-    'version': Info.version,
     'language': "english",
 
+    'version': Info.version,
     'version_show': true,
 
     'highlight_owned_color': "#598400",
-    'highlight_wishlist_color': "#1483ad",
+    'highlight_wishlist_color': "#0939a7",
     'highlight_coupon_color': "#a26426",
     'highlight_inv_gift_color': "#800040",
     'highlight_inv_guestpass_color': "#513c73",
@@ -467,6 +476,7 @@ SyncedStorage.defaults = {
     'showoc': true,
     'showhltb': true,
     'showpcgw': true,
+    'showcompletionistme': false,
     'showprotondb': false,
     'showclient': true,
     'showsteamcardexchange': false,
@@ -509,7 +519,7 @@ SyncedStorage.defaults = {
         "homepagesidebar": true
     },
 
-    'show_keylol_links': false,
+    //'show_keylol_links': false, // not in use, option is commented out
     'show_package_info': false,
     'show_sysreqcheck': false,
     'show_steamchart_info': true,
@@ -519,12 +529,11 @@ SyncedStorage.defaults = {
     'show_itad_button': false,
     'skip_got_steam': false,
 
-    'hideinstallsteambutton': false,
-    'hideaboutmenu': false,
+    'hideaboutlinks': false,
     'keepssachecked': false,
     'showemptywishlist': true,
     'showwlnotes': true,
-    'wishlist_notes': {},
+    'user_notes': {},
     'replaceaccountname': true,
     'showfakeccwarning': true,
     'showlanguagewarning': true,
@@ -537,7 +546,6 @@ SyncedStorage.defaults = {
     'showdrm': true,
     'regional_hideworld': false,
     'showinvnav': true,
-    'showesbg': true,
     'quickinv': true,
     'quickinv_diff': -0.01,
     'showallachievements': false,
@@ -550,6 +558,7 @@ SyncedStorage.defaults = {
     'removeguideslanguagefilter': false,
     'disablelinkfilter': false,
     'showallfriendsthatown': false,
+    'sortfriendsby': "default",
     'show1clickgoo': true,
     'show_profile_link_images': "gray",
     'profile_steamrepcn': true,
@@ -561,16 +570,19 @@ SyncedStorage.defaults = {
     'profile_backpacktf': true,
     'profile_astatsnl': true,
     'profile_permalink': true,
-    'profile_custom': false,
-    'profile_custom_name': "Google",
-    'profile_custom_url': "google.com/search?q=[ID]",
-    'profile_custom_icon': "www.google.com/images/branding/product/ico/googleg_lodp.ico",
+    'profile_custom_link': [
+        { 'enabled': false, 'name': "Google", 'url': "google.com/search?q=[ID]", 'icon': "www.google.com/images/branding/product/ico/googleg_lodp.ico", },
+    ],
     'steamcardexchange': true,
     'purchase_dates': true,
     'show_badge_progress': true,
     'show_wishlist_link': true,
     'show_wishlist_count': true,
     'show_progressbar': true,
+
+    'profile_showcase_twitch': true,
+    'profile_showcase_own_twitch': false,
+    'profile_showcase_twitch_profileonly': false,
 };
 
 
@@ -597,33 +609,85 @@ class ExtensionResources {
  * Default RegExp: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
  */
 (function() {
-    DOMPurify.setConfig({ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp|chrome-extension|moz-extension):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i});
+    DOMPurify.setConfig({ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp|chrome-extension|moz-extension|steam):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i});
 })();
 
 class HTML {
 
     static escape(str) {
-        // TODO there must be a better way
-        return str
-            .replace(/&/g, '&amp;')
-            .replace(/</g,'&lt;')
-            .replace(/>/g,'&gt;') ;
-    };
+        // @see https://stackoverflow.com/a/4835406
+        let map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+
+        return str.replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+
+    static fragment(html) {
+        let template = document.createElement('template');
+        template.innerHTML = DOMPurify.sanitize(html);
+        return template.content;
+    }
+
+    static element(html) {
+        return HTML.fragment(html).firstElementChild;
+    }
 
     static inner(node, html) {
-        if (typeof(node) === "string") {
+        if (typeof node == 'undefined' || node === null) {
+            console.warn(`${node} is not an Element.`);
+            return null;
+        }
+        if (typeof node == "string") {
             node = document.querySelector(node);
         }
-
+        if (!(node instanceof Element)) {
+            console.warn(`${node} is not an Element.`);
+            return null;
+        }
+        
         node.innerHTML = DOMPurify.sanitize(html);
+        return node;
+    }
+
+    static wrap(node, html) {
+        if (typeof node == 'undefined' || node === null) {
+            console.warn(`${node} is not an Element.`);
+            return null;
+        }
+        if (typeof node == "string") {
+            node = document.querySelector(node);
+        }
+        if (!(node instanceof Element)) {
+            console.warn(`${node} is not an Element.`);
+            return null;
+        }
+
+        let wrapper = HTML.element(html);
+        node.replaceWith(wrapper);
+        wrapper.appendChild(node);
+        return wrapper;
     }
 
     static adjacent(node, position, html) {
-        if (typeof(node) === "string") {
+        if (typeof node == 'undefined' || node === null) {
+            console.warn(`${node} is not an Element.`);
+            return null;
+        }
+        if (typeof node == "string") {
             node = document.querySelector(node);
         }
-
+        if (!(node instanceof Element)) {
+            console.warn(`${node} is not an Element.`);
+            return null;
+        }
+        
         node.insertAdjacentHTML(position, DOMPurify.sanitize(html));
+        return node;
     }
 
     static beforeBegin(node, html) {
@@ -642,6 +706,44 @@ class HTML {
         HTML.adjacent(node, "afterend", html);
     }
 
+
+    static async applyCSSTransition(node, prop, initialValue, finalValue, duration, callback) {
+        if (typeof node == 'string') {
+            node = document.querySelector(node);
+        }
+        node.style.transition = '';
+        node.style[prop] = initialValue;
+
+        if (window.getComputedStyle(node).display == 'none') {
+            node.style.display = 'inherit';
+            await sleep(0); // transition events don't fire if the element is display: none
+        }
+
+        node.style.transition = `${prop} ${duration}ms`;
+        node.style[prop] = finalValue;
+
+        return new Promise(function (resolve, reject) {
+            function transitionEnd(ev) {
+                node.style.transition = '';
+                resolve(node);
+                if (callback) {
+                    callback(node);
+                }
+            }
+            node.addEventListener('transitionend', transitionEnd, { 'once': true, });
+            node.addEventListener('mozTransitionEnd', transitionEnd, { 'once': true, }); // FF52, deprefixed in FF53
+            node.addEventListener('webkitTransitionEnd', transitionEnd, { 'once': true, }); // Chrome <74
+        });
+    }
+
+    static fadeIn(node, duration=400) {
+        return HTML.applyCSSTransition(node, 'opacity', 0, 1, duration, null);
+    }
+
+    static fadeOut(node, duration=400) {
+        return HTML.applyCSSTransition(node, 'opacity', 1, 0, duration, null)
+            .then((node) => { node.style.display = 'none'; return node; });
+    }
 }
 
 class HTMLParser {
@@ -650,13 +752,11 @@ class HTMLParser {
     }
     
     static htmlToDOM(html) {
-        let template = document.createElement('template');
-        HTML.inner(template, html);
-        return template.content;
+        return HTML.fragment(html);
     }
 
     static htmlToElement(html) {
-        return HTMLParser.htmlToDOM(html).firstElementChild;
+        return HTML.element(html);
     };
 
     static getVariableFromText(text, name, type) {
@@ -694,4 +794,10 @@ class HTMLParser {
             }
         }
     };
+}
+
+function sleep(duration) {
+    return new Promise(function(resolve, reject) {
+        setTimeout(function() { resolve(); }, duration);
+    });
 }

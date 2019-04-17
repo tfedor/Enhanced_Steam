@@ -140,6 +140,7 @@
     "badge_foil_progress": "View Foil Badge Progress",
     "net_gain": "Net gain:",
     "apppage_legal": "Legal Information",
+    "apppage_franchise": "Franchise",
     "bug_feature": "Report Bug / Suggest Feature",
     "always": "Always",
     "compare": "Compare",
@@ -219,11 +220,6 @@
     "concepts": "Concepts",
     "collections": "Collections",
     "discussions": "Discussions",
-    "add_wishlist_note": "Add a wishlist note",
-    "update_wishlist_note": "Update wishlist note",
-    "add_wishlist_note_prompt": "Enter your wishlist note",
-    "update_wishlist_note_prompt": "Update your wishlist note",
-    "add_wishlist_note_for_game": "Note for __gamename__",
     "results": "__num__ Results",
     "all_results": "All __num__ results displayed",
     "see_more": "See more",
@@ -370,6 +366,7 @@
         "inventory_market_text": "Show Market price on inventory page",
         "send_age_info": "Automatically send age verification when requested",
         "pcgw": "Show PCGamingWiki links",
+        "completionistme": "Show Completionist.me links",
         "protondb": "Show ProtonDB links",
         "store_steamcards": "Show SteamCardExchange links on store pages",
         "spamcommentregex": "Regular Expression string:",
@@ -398,13 +395,12 @@
         "friends_wishlist": "Items your friends have wishlisted",
         "showspeechsearch": "Add speech input to search boxes",
         "profile_link_images_color": "Colored",
-        "hide_about": "Hide \"About\" link",
+        "hide_about_links": "Hide \"Install Steam\" button / \"About\" link",
         "show_empty_wishlist": "Show \"Empty Wishlist\" button",
-        "show_wl_notes": "Show wishlist notes on wishlist",
+        "show_wl_notes": "Show notes on wishlist",
         "inventory_nav_text": "Show advanced navigation on inventory page",
         "carousel_description": "Show app descriptions on storefront carousel",
         "market_total": "Show transaction summary on Market",
-        "hide_install": "Hide \"Install Steam\" button",
         "lowestprice_coupon": "Include coupon codes in price comparison",
         "general": "General",
         "market": "Market",
@@ -427,6 +423,9 @@
         "show_badge_progress": "Show apps badge progress on store pages",
         "show_wishlist_link": "Show a Wishlist link on profiles",
         "show_wishlist_count": "Show the number of items on Wishlist",
+        "profile_showcase_twitch": "Add a showcase for Twitch.tv if there is a link",
+        "profile_showcase_own_twitch": "... including your own profile",
+        "profile_showcase_twitch_profileonly": "... only if the link is in the Profile Summary",
         "lang": {
             "english": "English",
             "brazilian": "Portuguese-Brazil",
@@ -455,7 +454,8 @@
             "thai": "Thai",
             "turkish": "Turkish",
             "ukrainian": "Ukrainian"
-        }
+        },
+        "add_custom_link": "Add custom link"
     },
     "ready": {
         "errormsg": "Error loading Augmented Steam data",
@@ -553,5 +553,12 @@
         "in_collection": "In Collection",
         "played": "Played",
         "never_played": "Never Played"
+    },
+    "user_note": {
+        "add": "Add a note",
+        "update": "Update note",
+        "add_prompt": "Enter your note",
+        "update_prompt": "Update your note",
+        "add_for_game": "Note for __gamename__"
     }
 }

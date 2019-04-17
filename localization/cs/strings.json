@@ -216,11 +216,6 @@
     "concepts": "Koncepty",
     "collections": "Kolekce",
     "discussions": "Diskuze",
-    "add_wishlist_note": "Přidat k seznamu přání",
-    "update_wishlist_note": "Aktualizovat seznam přání",
-    "add_wishlist_note_prompt": "Přidat poznámku přání",
-    "update_wishlist_note_prompt": "Aktualizovat své přání",
-    "add_wishlist_note_for_game": "Poznámka pro __gamename__",
     "results": "__num__ Výsledků",
     "all_results": "Všech __num__ výsledků je zobrazeno",
     "see_more": "Zobrazit více",
@@ -390,12 +385,10 @@
         "friends_wishlist": "Položky, které vaši přátelé mají na Seznamu přání",
         "showspeechsearch": "Přidat hlasové zadávání do vyhledávacích polí",
         "profile_link_images_color": "Barevné",
-        "hide_about": "Schovat odkaz \"O Steamu\"",
         "show_empty_wishlist": "Zobrazit tlačítko \"Vyprázdnit Seznam přání\"",
         "inventory_nav_text": "Ukázat pokročilou navigaci na stránce Inventář",
         "carousel_description": "Ukázat popis aplikace na slideshow na stránce Obchod",
         "market_total": "Ukázat shrnutí transakcí na Tržišti",
-        "hide_install": "Schovat tlačítko \"Nainstalovat Steam\"",
         "lowestprice_coupon": "Zahrnout kupóny při porovnávání cen",
         "general": "Obecné",
         "market": "Tržiště",
@@ -530,5 +523,12 @@
         "wallet": "Zadaný kód produktu patří k dárkovému kupónu nebo jde o kód pro Steam peněženku",
         "toomany": "Proběhlo příliš mnoho pokusů o aktivaci z tohoto účtu. Počkejte prosím a zkuste to znovu později.",
         "default": "Došlo k neočekávané chybě. Váš klíč nebyl použit. Počkejte prosím 30 minut a zkuste jej aktivovat znovu."
+    },
+    "user_note": {
+        "add": "Přidat poznámku",
+        "update": "Aktualizovat poznámku",
+        "add_prompt": "Vyplňte poznámku",
+        "update_prompt": "Aktualizovat poznámku",
+        "add_for_game": "Poznámka pro __gamename__"
     }
 }

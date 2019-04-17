@@ -263,3 +263,49 @@ a:hover {
 #author_info {
 	color:#999;
 }
+
+/**
+ * Custom links
+ */
+
+.custom-link {
+	white-space: nowrap;
+	display: flex;
+}
+
+.custom-link__label {
+	min-width: 40px;
+}
+
+
+.custom-link__input {
+	background-color: #282a2f;
+	color: white;
+	padding: 2px;
+	margin-left:10px;
+	font-size:12px;
+	font-family:"Arial", sans-serif;
+	border:1px solid #555;
+	border-radius:2px;
+	width: 300px;
+}
+
+.custom-link__close {
+	background-image: url('../img/remove.png');
+	background-color: transparent;
+	background-size: contain;
+	background-repeat: no-repeat;
+	border: none;
+	height: 16px;
+	width: 16px;
+	min-width: 16px;
+	padding: 0;
+	align-self: flex-start;
+	margin: 0 0 0 10px;
+	position: relative;
+	top: 2px;
+}
+.custom-link__close:hover {
+	background-color: transparent;
+}
+

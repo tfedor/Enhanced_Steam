@@ -1,34 +1,127 @@
 /**
  * Common functions that may be used on any pages
  */
-let Background = (function(){
-    let self = {};
+class ProgressBar {
+    static create() {
+        if (!SyncedStorage.get("show_progressbar")) { return; }
 
-    self.message = async function(message) {
+        let container = document.getElementById("global_actions");
+        if (!container) return;
+        HTML.afterEnd(container,
+            `<div class="es_progress_wrap">
+                <div id="es_progress" class="complete" title="${ Localization.str.ready.ready }">
+                    <div class="progress-inner-element">
+                        <div class="progress-bar">
+                            <div class="progress-value" style="width: 18px"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>`);
+    }
+
+    static loading() {
+        let node = document.getElementById('es_progress');
+        if (!node) { return; }
+
+        if (Localization.str.ready) { // FIXME under what circumstance is this false? Should all the other members have the same check?
+            node.setAttribute("title", Localization.str.ready.loading);
+        }
+
+        ProgressBar.requests = { 'initiated': 0, 'completed': 0, };
+        node.classList.remove("complete");
+        node.querySelector(".progress-value").style.width = "18px";
+    }
+
+    static startRequest() {
+        if (!ProgressBar.requests) { return; }
+        ProgressBar.requests.initiated++;
+        ProgressBar.progress();
+    }
+
+    static finishRequest() {
+        if (!ProgressBar.requests) { return; }
+        ProgressBar.requests.completed++;        
+        ProgressBar.progress();
+    }
+
+    static progress(value) {
+        let node = document.getElementById('es_progress');
+        if (!node) { return; }
+
+        if (typeof value == 'undefined') {
+            if (!ProgressBar.requests) { return; }
+            if (ProgressBar.requests.initiated > 0) {
+                value = 100 * ProgressBar.requests.completed / ProgressBar.requests.initiated;
+            }
+        }
+        if (value >= 100) {
+            value = 100;
+        }
+
+        node.querySelector(".progress-value").style.width = `${value}px`;
+
+        if (value >= 100) {
+            node.classList.add("complete");
+            node.setAttribute("title", Localization.str.ready.ready);
+            ProgressBar.requests = null;
+        }
+    }
+
+    static failed(message, url, status, error) {
+        let node = document.getElementById('es_progress');
+        if (!node) { return; }
+
+        node.classList.add("error");
+        node.setAttribute("title", "");
+        ProgressBar.requests = null;
+        
+        let nodeError = node.closest('.es_progress_wrap').querySelector(".es_progress_error");
+        if (!nodeError) {
+            HTML.afterEnd(node, "<div class='es_progress_error'>" + Localization.str.ready.failed + "<ul></ul></div>");
+            nodeError = node.nextElementSibling;
+        }
+
+        if (!message) {
+            message = "<span>" + url + "</span>";
+            if (status) {
+                message += "(" + status +": "+ error +")";
+            }
+        }
+
+        HTML.beforeEnd(nodeError.querySelector("ul"), "<li>" + message + "</li>");
+    }
+}
+
+
+class Background {
+    static async message(message) {
+        ProgressBar.startRequest();
+
         return new Promise(function (resolve, reject) {
             chrome.runtime.sendMessage(message, function(response) {
+                ProgressBar.finishRequest();
+
                 if (!response) {
+                    ProgressBar.failed("No response from extension background context.");
                     reject("No response from extension background context.");
                     return;
                 }
                 if (typeof response.error !== 'undefined') {
+                    ProgressBar.failed(response.error);
                     reject(response.error);
                     return;
                 }
                 resolve(response.response);
             });
         });
-    };
+    }
     
-    self.action = function(requested, params) {
+    static action(requested, params) {
         if (typeof params == 'undefined')
-            return self.message({ 'action': requested, });
-        return self.message({ 'action': requested, 'params': params, });
-    };
-
-    Object.freeze(self);
-    return self;
-})();
+            return Background.message({ 'action': requested, });
+        return Background.message({ 'action': requested, 'params': params, });
+    }
+}
 
 let TimeHelper = (function(){
 
@@ -160,15 +253,20 @@ let RequestData = (function(){
     let self = {};
 
     self.getJson = function(url) {
+        ProgressBar.startRequest();
+
         return new Promise(function(resolve, reject) {
             function requestHandler(state) {
                 if (state.readyState !== 4) {
                     return;
                 }
 
+                ProgressBar.finishRequest();
+
                 if (state.status === 200) {
                     resolve(JSON.parse(state.responseText));
                 } else {
+                    ProgressBar.failed(null, url, state.status, state.statusText);
                     reject(state.status);
                 }
             }
@@ -186,9 +284,6 @@ let RequestData = (function(){
         });
     };
 
-    let totalRequests = 0;
-    let processedRequests = 0;
-
     self.getHttp = function(url, settings, returnHtml) {
         settings = settings || {};
         settings.withCredentials = settings.withCredentials || false;
@@ -196,9 +291,7 @@ let RequestData = (function(){
         settings.method = settings.method || "GET";
         settings.body = settings.body || null;
 
-        totalRequests += 1;
-
-        ProgressBar.loading();
+        ProgressBar.startRequest();
 
         return new Promise(function(resolve, reject) {
 
@@ -207,8 +300,7 @@ let RequestData = (function(){
                     return;
                 }
 
-                processedRequests += 1;
-                ProgressBar.progress((processedRequests / totalRequests) * 100);
+                ProgressBar.finishRequest();
 
                 if (state.status === 200) {
                     if (returnHtml) {
@@ -248,77 +340,6 @@ let RequestData = (function(){
             method: "POST",
             body: formData
         }));
-    };
-
-    return self;
-})();
-
-let ProgressBar = (function(){
-    let self = {};
-
-    let node = null;
-
-    self.create = function() {
-        if (!SyncedStorage.get("show_progressbar")) { return; }
-
-        let container = document.getElementById("global_actions");
-        if (!container) return;
-        HTML.afterEnd(container,
-            `<div class="es_progress_wrap">
-                <div id="es_progress" class="complete" title="${ Localization.str.ready.ready }">
-                    <div class="progress-inner-element">
-                        <div class="progress-bar">
-                            <div class="progress-value" style="width: 18px"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>`);
-
-        node = document.querySelector("#es_progress");
-    };
-
-    self.loading = function() {
-        if (!node) { return; }
-
-        if (Localization.str.ready) {
-            node.setAttribute("title", Localization.str.ready.loading);
-        }
-
-        node.classList.remove("complete");
-        node.querySelector(".progress-value").style.width = "18px";
-    };
-
-    self.progress = function(value) {
-        if (!node) { return; }
-
-        node.querySelector(".progress-value").style.width = value; // TODO verify this works, shouldn't there be "%"?
-
-        if (value >= 100) {
-            node.classList.add("complete");
-            node.setAttribute("title", Localization.str.ready.ready)
-        }
-    };
-
-    self.failed = function(message, url, status, error) {
-        if (!node) { return; }
-
-        node.classList.add("error");
-        node.setAttribute("title", "");
-
-        let nodeError = node.closest('.es_progress_wrap').querySelector(".es_progress_error");
-        if (!nodeError) {
-            HTML.afterEnd(node, "<div class='es_progress_error'>" + Localization.str.ready.failed + "<ul></ul></div>");
-            nodeError = node.nextElementSibling;
-        }
-
-        if (!message) {
-            message = "<span>" + url + "</span>";
-            if (status) {
-                message += "(" + status +": "+ error +")";
-            }
-        }
-
-        HTML.beforeEnd(nodeError.querySelector("ul"), "<li>" + message + "</li>");
     };
 
     return self;
@@ -554,7 +575,7 @@ let CurrencyRegistry = (function() {
         return indices.id[number] || defaultCurrency;
     };
 
-    self.fromString = function(price) { 
+    self.fromString = function(price) {
         let match = price.match(re);
         if (!match)
             return defaultCurrency;
@@ -563,7 +584,7 @@ let CurrencyRegistry = (function() {
 
     Object.defineProperty(self, 'storeCurrency', { get() { return CurrencyRegistry.fromType(Currency.storeCurrency); }});
     Object.defineProperty(self, 'customCurrency', { get() { return CurrencyRegistry.fromType(Currency.customCurrency); }});
-    
+
     self.init = async function() {
         let currencies = await Background.action('steam.currencies');
         for (let currency of currencies) {
@@ -615,13 +636,12 @@ let Currency = (function() {
 
     function getCurrencyFromWallet() {
         return new Promise((resolve, reject) => {
-            ExtensionLayer.runInPageContext(
-                `function(){
-                    window.postMessage({
-                        type: "es_walletcurrency",
-                        wallet_currency: typeof g_rgWalletInfo !== 'undefined' && g_rgWalletInfo ? g_rgWalletInfo.wallet_currency : null
-                    }, "*");
-                }`);
+            ExtensionLayer.runInPageContext(() =>
+                window.postMessage({
+                    type: "es_walletcurrency",
+                    wallet_currency: typeof g_rgWalletInfo !== 'undefined' && g_rgWalletInfo ? g_rgWalletInfo.wallet_currency : null
+                }, "*")
+            );
 
             function listener(e) {
                 if (e.source !== window) { return; }
@@ -878,23 +898,21 @@ let EnhancedSteam = (function() {
 
             document.querySelector("#es_reset_language_code").addEventListener("click", function(e){
                 e.preventDefault();
-                ExtensionLayer.runInPageContext("function(){ ChangeLanguage( '" + warningLanguage + "' ); }");
+                ExtensionLayer.runInPageContext(`() => ChangeLanguage("${warningLanguage}")`);
             });
         });
     };
 
-    self.removeInstallSteamButton = function() {
-        if (!SyncedStorage.get("hideinstallsteambutton")) { return; }
-        document.querySelector("div.header_installsteam_btn").remove();
-    };
+    self.removeAboutLinks = function() {
+        if (!SyncedStorage.get("hideaboutlinks")) { return; }
 
-    self.removeAboutMenu = function(){
-        if (!SyncedStorage.get("hideaboutmenu")) { return; }
-		
-        let aboutMenu = document.querySelector(".menuitem[href='https://store.steampowered.com/about/']");
-        if (aboutMenu == null) { return; }
-		
-        aboutMenu.remove();
+        document.querySelector("div.header_installsteam_btn").remove();
+
+        if (User.isSignedIn) {
+            document.querySelector(".submenuitem[href='https://store.steampowered.com/about/']").remove();
+        } else {
+            document.querySelector(".menuitem[href='https://store.steampowered.com/about/']").remove();
+        }
     };
 
     self.addHeaderLinks = function(){
@@ -999,7 +1017,10 @@ let EnhancedSteam = (function() {
     self.alternateLinuxIcon = function(){
         if (!SyncedStorage.get("show_alternative_linux_icon")) { return; }
         let url = ExtensionLayer.getLocalUrl("img/alternative_linux_icon.png");
-        HTML.beforeEnd("head", "<style>span.platform_img.linux {background-image: url("+url+");}</style>")
+        let style = document.createElement('style');
+        style.textContent = `span.platform_img.linux { background-image: url("${url}"); }`;
+        document.head.appendChild(style);
+        style = null;
     };
 
     // Hide Trademark and Copyright symbols in game titles for Community pages
@@ -1033,7 +1054,7 @@ let EnhancedSteam = (function() {
                 });
             });
         });
-        
+
         nodes = document.querySelectorAll("#game_select_suggestions,#search_suggestion_contents,.tab_content_ctn");
         for (let i=0, len=nodes.length; i<len; i++) {
             let node = nodes[i];
@@ -1200,7 +1221,7 @@ let EarlyAccess = (function(){
             imageName = "img/overlay/early_access_banner_" + Language.getCurrentSteamLanguage().toLowerCase() + ".png";
         }
         imageUrl = ExtensionLayer.getLocalUrl(imageName);
-    
+
         switch (window.location.host) {
             case "store.steampowered.com":
                 handleStore();
@@ -1224,7 +1245,7 @@ let Inventory = (function(){
     let coupons = {};
     let inv6set = new Set();
     let coupon_appids = new Map();
-    
+
     let _promise = null;
     self.promise = async function() {
         if (_promise) { return _promise; }
@@ -1294,11 +1315,16 @@ let Highlights = (function(){
         if (!tagCssLoaded) {
             tagCssLoaded = true;
 
-            let tagCss = "";
+            let tagCss = [];
             ["notinterested", "owned", "wishlist", "inv_guestpass", "coupon", "inv_gift"].forEach(name => {
-                tagCss += '.es_tag_' + name + ' { background-color: ' + SyncedStorage.get("tag_"+name+"_color") + ' }\n';
+                let color = SyncedStorage.get(`tag_${name}_color`);
+                tagCss.push(`.es_tag_${name} { background-color: ${color}; }`);
             });
-            HTML.beforeEnd("head", '<style id="es_tag_styles" type="text/css">' + tagCss + '</style>');
+            let style = document.createElement('style');
+            style.id = 'es_tag_styles';
+            style.textContent = tagCss.join("\n");
+            document.head.appendChild(style);
+            style = null;
         }
 
         // Add the tags container if needed
@@ -1412,33 +1438,59 @@ let Highlights = (function(){
         if (!highlightCssLoaded) {
             highlightCssLoaded = true;
 
-            let hlCss = "";
+            let hlCss = [];
 
             ["notinterested", "owned", "wishlist", "inv_guestpass", "coupon", "inv_gift"].forEach(name => {
-                hlCss += '.es_highlighted_' + name + ' { background: ' + SyncedStorage.get("highlight_" + name + "_color") + ' linear-gradient(135deg, rgba(0, 0, 0, 0.70) 10%, rgba(0, 0, 0, 0) 100%) !important; }\n';
+                let color = SyncedStorage.get(`highlight_${name}_color`);
+                hlCss.push(
+                   `.es_highlighted_${name} { background: ${color} linear-gradient(135deg, rgba(0, 0, 0, 0.70) 10%, rgba(0, 0, 0, 0) 100%) !important; }
+                    .carousel_items .es_highlighted_${name}.price_inline { outline: solid ${color}; }`);
             });
 
-            HTML.beforeEnd("head", '<style id="es_highlight_styles" type="text/css">' + hlCss + '</style>');
+            let style = document.createElement('style');
+            style.id = 'es_highlight_styles';
+            style.textContent = hlCss.join("\n");
+            document.head.appendChild(style);
+            style = null;
         }
 
         // Carousel item
         if (node.classList.contains("cluster_capsule")) {
             node = node.querySelector(".main_cap_content").parentNode;
+        } else if (node.classList.contains("large_cap")) {
+            // Genre Carousel items
+            node = node.querySelector(".large_cap_content");
+        } else if (node.parentNode.classList.contains("steam_curator_recommendation") && node.parentNode.classList.contains("big")) {
+            node = node.previousElementSibling;
         }
 
-        // Genre Carousel items
-        if (node.classList.contains("large_cap")) {
-            node = node.querySelector(".large_cap_content");
+        switch(true) {
+            // Recommendations on front page when scrolling down
+            case node.classList.contains("single"):
+                node = node.querySelector(".gamelink");
+                // don't break
+
+            case node.parentNode.parentNode.classList.contains("apps_recommended_by_curators_v2"): {
+                let r = node.querySelectorAll(".ds_flag");
+                r.forEach(node => node.remove());
+                r = node.querySelectorAll(".ds_flagged");
+                r.forEach(node => node.classList.remove("ds_flagged"));
+                break;
+            }
+
+            default: {
+                let r = node.querySelector(".ds_flag");
+                if (r) { r.remove(); }
+                r = node.querySelector(".ds_flagged");
+                if (r) {
+                    r.classList.remove("ds_flagged");
+                }
+                break;
+            }
+            
         }
 
         node.classList.remove("ds_flagged");
-        let r = node.querySelector(".ds_flag");
-        if (r) { r.remove(); }
-
-        r = node.querySelector(".ds_flagged");
-        if (r) {
-            r.classList.remove("ds_flagged");
-        }
     }
 
 
@@ -1455,15 +1507,7 @@ let Highlights = (function(){
         }
     }
 
-    self.highlightOwned = function(node) {
-        node.classList.add("es_highlight_checked");
-
-        highlightItem(node, "owned");
-    };
-
     self.highlightWishlist = function(node) {
-        node.classList.add("es_highlight_checked");
-
         highlightItem(node, "wishlist");
     };
 
@@ -1486,106 +1530,124 @@ let Highlights = (function(){
         node.style.display = "none";
     };
 
-    self.highlightNotInterested = async function(node) {
-        await DynamicStore;
-
-        let aNode = node.querySelector("a");
-        let appid = GameId.getAppid(node.href, aNode && aNode.href) || GameId.getAppidWishlist(node.id);
-        if (!appid || !DynamicStore.isIgnored(appid)) { return; }
-
-        if (node.classList.contains("home_area_spotlight")) {
-            node = node.querySelector(".spotlight_content");
-        }
-
-        node.classList.add("es_highlight_checked");
-
-        if (SyncedStorage.get("hide_ignored") && node.closest(".search_result_row")) {
+    self.highlightOwned = function(node) {
+        if (SyncedStorage.get("hide_owned") && (node.closest(".search_result_row") || node.closest(".tab_item"))) {
             node.style.display = "none";
-            return;
-        }
+        } 
+        highlightItem(node, "owned");
+    };
 
+    self.highlightNotInterested = function(node) {
+        if (SyncedStorage.get("hide_ignored") && (node.closest(".search_result_row") || node.closest(".tab_item"))) {
+            node.style.display = "none";
+        }
         highlightItem(node, "notinterested");
     };
 
+    self.highlightAndTag = function(nodes) {
+        for (let i=0, len=nodes.length; i<len; i++) {
+            let node = nodes[i];
+            let nodeToHighlight = node;
+
+            if (node.classList.contains("item")) {
+                nodeToHighlight = node.querySelector(".info");
+            } else if (node.classList.contains("home_area_spotlight")) {
+                nodeToHighlight = node.querySelector(".spotlight_content");
+            } else if (node.parentNode.classList.contains("steam_curator_recommendation") && node.parentNode.classList.contains("big")) {
+                nodeToHighlight = node.nextElementSibling;
+            } else if (node.parentNode.parentNode.classList.contains("curations")) {
+                nodeToHighlight = node.parentNode;
+            }
+
+            if (node.querySelector(".ds_owned_flag")) {
+                self.highlightOwned(nodeToHighlight);
+            }
+
+            if (node.querySelector(".ds_wishlist_flag")) {
+                self.highlightWishlist(nodeToHighlight);
+            }
+
+            if (node.querySelector(".ds_ignored_flag")) {
+                self.highlightNotInterested(nodeToHighlight);
+            }
+
+            if (node.classList.contains("search_result_row") && !node.querySelector(".search_discount span")) {
+                self.highlightNonDiscounts(nodeToHighlight);
+            }
+
+            let aNode = node.querySelector("a");
+            let appid = GameId.getAppid(node.href || (aNode && aNode.href) || GameId.getAppidWishlist(node.id));
+            if (appid) {
+                if (Inventory.hasGuestPass(appid)) {
+                    self.highlightInvGuestpass(node);
+                }
+                if (Inventory.getCouponByAppId(appid)) {
+                    self.highlightCoupon(node);
+                }
+                if (Inventory.hasGift(appid)) {
+                    self.highlightInvGift(node);
+                }
+            }
+        }
+    }
+
     self.startHighlightsAndTags = async function(parent) {
         await Inventory;
-        
+
         // Batch all the document.ready appid lookups into one storefront call.
         let selectors = [
-            "div.tab_row",					// Storefront rows
+            "div.tab_row",					                // Storefront rows
             "div.dailydeal_ctn",
-            "div.wishlistRow",				// Wishlist rows
-            "a.game_area_dlc_row",			// DLC on app pages
-            "a.small_cap",					// Featured storefront items and "recommended" section on app pages
+            ".store_main_capsule",                          // "Featured & Recommended"
+            "div.wishlistRow",				                // Wishlist rows
+            "a.game_area_dlc_row",			                // DLC on app pages
+            "a.small_cap",					                // Featured storefront items and "recommended" section on app pages
             "a.home_smallcap",
-            "a.search_result_row",			// Search result rows
-            "a.match",						// Search suggestions rows
-            "a.cluster_capsule",			// Carousel items
-            "div.recommendation_highlight",	// Recommendation pages
-            "div.recommendation_carousel_item",	// Recommendation pages
-            "div.friendplaytime_game",		// Recommendation pages
-            "div.recommendation",           // Curator pages and the new DLC pages
-            "div.carousel_items.curator_featured > div", // Carousel items on Curator pages
-            "div.item_ctn",                 // Curator list item
-            "div.dlc_page_purchase_dlc",	// DLC page rows
-            "div.sale_page_purchase_item",	// Sale pages
-            "div.item",						// Sale pages / featured pages
-            "div.home_area_spotlight",		// Midweek and weekend deals
-            "div.browse_tag_game",			// Tagged games
-            "div.similar_grid_item",		// Items on the "Similarly tagged" pages
-            ".tab_item",					// Items on new homepage
-            "a.special",					// new homepage specials
-            "div.curated_app_item",			// curated app items!
-            "a.summersale_dailydeal"		// Summer sale daily deal
+            ".home_content_item",                           // Small items under "Keep scrolling for more recommendations"
+            ".home_content.single",                         // Big items under "Keep scrolling for more recommendations"
+            ".home_area_spotlight",                         // "Special offers" big items
+            "a.search_result_row",			                // Search result rows
+            "a.match",						                // Search suggestions rows
+            ".highlighted_app",                             // For example "Recently Recommended" on curators page
+            "a.cluster_capsule",			                // Carousel items
+            "div.recommendation_highlight",	                // Recommendation pages
+            "div.recommendation_carousel_item",             // Recommendation pages
+            "div.friendplaytime_game",		                // Recommendation pages
+            ".recommendation_row",                          // "Recent recommendations by friends"
+            ".friendactivity_tab_row",                      // "Most played" and "Most wanted" tabs on recommendation pages
+            ".friend_game_block",                           // "Friends recently bought"
+            "div.recommendation",                           // Curator pages and the new DLC pages
+            "div.carousel_items.curator_featured > div",    // Carousel items on Curator pages
+            ".store_capsule",                               // All sorts of items on almost every page
+            ".home_marketing_message",                      // "Updates and offers"
+            "div.item_ctn",                                 // Curator list item
+            "div.dlc_page_purchase_dlc",	                // DLC page rows
+            "div.sale_page_purchase_item",	                // Sale pages
+            "div.item",						                // Sale pages / featured pages
+            "div.home_area_spotlight",		                // Midweek and weekend deals
+            "div.browse_tag_game",			                // Tagged games
+            "div.similar_grid_item",		                // Items on the "Similarly tagged" pages
+            ".tab_item",					                // Items on new homepage
+            "a.special",					                // new homepage specials
+            "div.curated_app_item",			                // curated app items!
+            "a.summersale_dailydeal"		                // Summer sale daily deal
         ];
 
         parent = parent || document;
 
-        setTimeout(function() {
+        setTimeout(() => {
             selectors.forEach(selector => {
-                
-                let nodes = parent.querySelectorAll(selector+":not(.es_highlighted)");
-                for (let i=0, len=nodes.length; i<len; i++) {
-                    let node = nodes[i];
-                    let nodeToHighlight = node;
-
-                    if (node.classList.contains("item")) {
-                        nodeToHighlight = node.querySelector(".info");
-                    }
-                    if (node.classList.contains("home_area_spotlight")) {
-                        nodeToHighlight = node.querySelector(".spotlight_content");
-                    }
-
-                    if (node.querySelector(".ds_owned_flag")) {
-                        self.highlightOwned(nodeToHighlight);
-                    }
-
-                    if (node.querySelector(".ds_wishlist_flag")) {
-                        self.highlightWishlist(nodeToHighlight);
-                    }
-
-                    if (node.classList.contains("search_result_row") && !node.querySelector(".search_discount span")) {
-                        self.highlightNonDiscounts(nodeToHighlight);
-                    }
-
-                    let aNode = node.querySelector("a");
-                    let appid = GameId.getAppid(node.href || (aNode && aNode.href) || GameId.getAppidWishlist(node.id));
-                    if (appid) {
-                        if (Inventory.hasGuestPass(appid)) {
-                            self.highlightInvGuestpass(node);
-                        }
-                        if (Inventory.getCouponByAppId(appid)) {
-                            self.highlightCoupon(node);
-                        }
-                        if (Inventory.hasGift(appid)) {
-                            self.highlightInvGift(node);
-                        }
-                    }
-
-                    self.highlightNotInterested(node);
-                }
+                self.highlightAndTag(parent.querySelectorAll(selector+":not(.es_highlighted)"));
             });
-        }, 500);
+    
+            let searchBoxContents = parent.getElementById("search_suggestion_contents");
+            if (searchBoxContents) {
+                let observer = new MutationObserver(records => {
+                    self.highlightAndTag(records[0].addedNodes);
+                });
+                observer.observe(searchBoxContents, {childList: true});
+            }
+        }, 1000);
     };
 
     return self;
@@ -1628,7 +1690,7 @@ let DynamicStore = (function(){
     });
 
     async function _fetch() {
-        if (!User.isSignedIn) { 
+        if (!User.isSignedIn) {
             self.clear();
             return _data;
         }
@@ -1647,7 +1709,7 @@ let DynamicStore = (function(){
 
     return self;
 })();
-    
+
 let Prices = (function(){
 
     function Prices() {
@@ -1724,7 +1786,7 @@ let Prices = (function(){
                 let lowest_alt = lowest.inCurrency(Currency.storeCurrency);
                 prices += ` (${lowest_alt.toString()})`;
             }
-            
+
             let lowestStr = Localization.str.lowest_price_format
                 .replace("__price__", prices)
                 .replace("__store__", `<a href="${priceUrl}" target="_blank">${store}</a>`);
@@ -1883,7 +1945,7 @@ let Prices = (function(){
 
         Background.action('prices', apiParams).then(response => {
             let meta = response['.meta'];
-            
+
             for (let [gameid, info] of Object.entries(response.data)) {
                 that._processPrices(gameid, meta, info);
                 that._processBundles(gameid, meta, info);
@@ -1936,10 +1998,11 @@ let Common = (function(){
         ]);
 
         ProgressBar.create();
+        ProgressBar.loading();
         UpdateHandler.checkVersion();
         EnhancedSteam.addMenu();
         EnhancedSteam.addLanguageWarning();
-        EnhancedSteam.removeInstallSteamButton();
+        EnhancedSteam.removeAboutLinks();
         EnhancedSteam.addHeaderLinks();
         EarlyAccess.showEarlyAccess();
         EnhancedSteam.disableLinkFilter();
@@ -1952,12 +2015,163 @@ let Common = (function(){
             EnhancedSteam.launchRandomButton();
             // TODO add itad sync
             EnhancedSteam.bindLogout();
-        } else {
-            EnhancedSteam.removeAboutMenu();
         }
-
-
     };
 
     return self;
 })();
+
+
+class MediaPage {
+    mediaSliderExpander() {
+        let detailsBuilt = false;
+        let details  = document.querySelector("#game_highlights .rightcol, .workshop_item_header .col_right");
+
+        if (!details) { return; }
+        // If we can't identify a details block to move out of the way, not much point to the rest of this function.
+
+        HTML.beforeEnd("#highlight_player_area",
+            `<div class="es_slider_toggle btnv6_blue_hoverfade btn_medium">
+                <div data-slider-tooltip="` + Localization.str.expand_slider + `" class="es_slider_expand"><i class="es_slider_toggle_icon"></i></div>
+                <div data-slider-tooltip="` + Localization.str.contract_slider + `" class="es_slider_contract"><i class="es_slider_toggle_icon"></i></div>
+            </div>`);
+
+        // Initiate tooltip
+        ExtensionLayer.runInPageContext(function() { $J('[data-slider-tooltip]').v_tooltip({'tooltipClass': 'store_tooltip community_tooltip', 'dataName': 'sliderTooltip' }); });
+
+        function buildSideDetails() {
+            if (detailsBuilt) { return; }
+            detailsBuilt = true;
+
+            if (!details) { return; }
+
+            if (details.matches(".rightcol")) {
+                // Clone details on a store page
+                let detailsClone = details.querySelector(".glance_ctn");
+                if (!detailsClone) return;
+                detailsClone = detailsClone.cloneNode(true);
+                detailsClone.classList.add("es_side_details", "block", "responsive_apppage_details_left");
+
+                for (let node of detailsClone.querySelectorAll(".app_tag.add_button, .glance_tags_ctn.your_tags_ctn")) {
+                    // There are some issues with having duplicates of these on page when trying to add tags
+                    node.remove();
+                }
+
+                let detailsWrap = HTML.wrap(detailsClone, `<div class='es_side_details_wrap'></div>`);
+                detailsWrap.style.display = 'none';
+                let target = document.querySelector("div.rightcol.game_meta_data");
+                if (target) {
+                    target.insertAdjacentElement('afterbegin', detailsWrap);
+                }
+            } else {
+                // Clone details in the workshop
+                let detailsClone = details.cloneNode(true);
+                detailsClone.style.display = 'none';
+                detailsClone.setAttribute("class", "panel es_side_details");
+                HTML.adjacent(detailsClone, "afterbegin", `<div class="title">${Localization.str.details}</div><div class="hr padded"></div>`);
+                let target = document.querySelector('.sidebar');
+                if (target) {
+                    target.insertAdjacentElement('afterbegin', detailsClone);
+                }
+
+                target = document.querySelector('.highlight_ctn');
+                if (target) {
+                    HTML.wrap(target, `<div class="leftcol" style="width: 638px; float: left; position: relative; z-index: 1;" />`);
+                }
+
+                // Don't overlap Sketchfab's "X"
+                // Example: https://steamcommunity.com/sharedfiles/filedetails/?id=606009216
+                target = document.querySelector('.highlight_sketchfab_model');
+                if (target) {
+                    target = document.getElementById('highlight_player_area');
+                    target.addEventListener('mouseenter', function() {
+                        let el = this.querySelector('.highlight_sketchfab_model');
+                        if (!el) { return; }
+                        if (el.style.display == 'none') { return; }
+                        el = document.querySelector('.es_slider_toggle');
+                        if (!el) { return; }
+                        el.style.top = '32px';
+                    }, false);
+                    target.addEventListener('mouseleave', function() {
+                        let el = document.querySelector('.es_slider_toggle');
+                        if (!el) { return; }
+                        el.style.top = null;
+                    }, false);
+                }
+            }
+        }
+
+        var expandSlider = LocalStorage.get("expand_slider", false);
+        if (expandSlider === true) {
+            buildSideDetails();
+
+            for (let node of document.querySelectorAll(".es_slider_toggle, #game_highlights, .workshop_item_header, .es_side_details, .es_side_details_wrap")) {
+                node.classList.add("es_expanded");
+            }
+            for (let node of document.querySelectorAll(".es_side_details_wrap, .es_side_details")) {
+                // shrunk => expanded
+                node.style.display = null;
+                node.style.opacity = 1;
+            }
+
+            // Triggers the adjustment of the slider scroll bar
+            setTimeout(function(){
+                window.dispatchEvent(new Event("resize"));
+            }, 250);
+        }
+
+        document.querySelector(".es_slider_toggle").addEventListener("click", clickSliderToggle, false);
+        function clickSliderToggle(ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+
+            let el = ev.target.closest('.es_slider_toggle');
+            details.style.display = 'none';
+            buildSideDetails();
+
+            // Fade In/Out sideDetails
+            let sideDetails = document.querySelector(".es_side_details_wrap, .es_side_details");
+            if (sideDetails) {
+                if (!el.classList.contains("es_expanded")) {
+                    // shrunk => expanded
+                    sideDetails.style.display = null;
+                    sideDetails.style.opacity = 1;
+                } else {
+                    // expanded => shrunk
+                    sideDetails.style.opacity = 0;
+                    setTimeout(function(){
+                        // Hide after transition completes
+                        if (!el.classList.contains("es_expanded"))
+                            sideDetails.style.display = 'none';
+                        }, 250);
+                }
+            }
+
+            // On every animation/transition end check the slider state
+            let container = document.querySelector('.highlight_ctn');
+            container.addEventListener('transitionend', saveSlider, { 'capture': false, 'once': false, });
+            function saveSlider(ev) {
+                // Save slider state
+                LocalStorage.set('expand_slider', el.classList.contains('es_expanded'));
+
+                // If slider was contracted show the extended details
+                if (!el.classList.contains('es_expanded')) {
+                    details.style.transition = "";
+                    details.style.opacity = "0";
+                    details.style.transition = "opacity 250ms";
+                    details.style.display = null;
+                    details.style.opacity = "1";
+                }
+
+                // Triggers the adjustment of the slider scroll bar
+                setTimeout(function(){
+                    window.dispatchEvent(new Event("resize"));
+                }, 250);
+            }
+
+            for (let node of document.querySelectorAll(".es_slider_toggle, #game_highlights, .workshop_item_header, .es_side_details, .es_side_details_wrap")) {
+                node.classList.toggle("es_expanded");
+            }
+        }
+    }
+}
