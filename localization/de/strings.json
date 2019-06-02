@@ -51,6 +51,7 @@
     "website": "Website",
     "games": "Spiele",
     "total_time": "Gesamtzeit",
+    "year": "Jahr",
     "dlc_suggest": "Neue Kategorie vorschlagen",
     "badge_completion_cost": "Kosten um das Abzeichen zu vervollständigen: __cost__",
     "loading": "Lade...",
@@ -444,8 +445,7 @@
     "ready": {
         "errormsg": "Fehler beim Laden von Augmented Steam-Daten",
         "loading": "Augmented Steam lädt Daten...",
-        "ready": "Augmented Steam ist bereit",
-        "failed": "Eine oder mehrere Anfragen sind gescheitert:"
+        "ready": "Augmented Steam ist bereit"
     },
     "twitch": {
         "now_streaming": "__username__ ist live auf Twitch",
@@ -531,5 +531,9 @@
         "add_prompt": "Gib deine Notiz ein",
         "update_prompt": "Aktualisiere deine Notiz",
         "add_for_game": "Notiz für __gamename__"
+    },
+    "queue": {
+        "new": "<b>Neue</b> Liste",
+        "new_tooltip": "Entfernen Sie dieses Produkt aus Ihrer Liste und fahren Sie mit einer neuen Liste fort."
     }
 }

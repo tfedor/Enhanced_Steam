@@ -1,5 +1,5 @@
 const Info = {
-    'version': "0.9.7",
+    'version': "1.0.0",
 };
 
 /**
@@ -202,12 +202,6 @@ class UpdateHandler {
             SyncedStorage.set("hideaboutlinks", SyncedStorage.get("hideinstallsteambutton") && SyncedStorage.get("hideaboutmenu"));
             SyncedStorage.remove("hideinstallsteambutton");
             SyncedStorage.remove("hideaboutmenu");
-
-            SyncedStorage.set("user_notes", SyncedStorage.get("wishlist_notes"));
-            SyncedStorage.remove("wishlist_notes");
-        }
-
-        if (oldVersion.isSameOrBefore("0.9.5")) {
             // Update structure for custom profile links to allow multiple
             if (SyncedStorage.get('profile_custom_name')) {
                 let custom_link = {
@@ -222,8 +216,17 @@ class UpdateHandler {
                 SyncedStorage.remove('profile_custom_url');
                 SyncedStorage.remove('profile_custom_icon');
             }
-        }
-    
+            SyncedStorage.set("user_notes", SyncedStorage.get("wishlist_notes"));
+            SyncedStorage.remove("wishlist_notes");
+        } else if (oldVersion.isSameOrBefore("0.9.7")) {
+            SyncedStorage.remove("hide_wishlist");
+            SyncedStorage.remove("hide_cart");
+            SyncedStorage.remove("hide_notdiscounted");
+            SyncedStorage.remove("hide_mixed");
+            SyncedStorage.remove("hide_negative");
+            SyncedStorage.remove("hide_priceabove");
+            SyncedStorage.remove("priceabove_value");
+        }    
     }
 }
 
@@ -534,7 +537,7 @@ SyncedStorage.defaults = {
     'hideaboutlinks': false,
     'keepssachecked': false,
     'showemptywishlist': true,
-    'showwlnotes': true,
+    'showusernotes': true,
     'user_notes': {},
     'replaceaccountname': true,
     'showfakeccwarning': true,
@@ -573,7 +576,7 @@ SyncedStorage.defaults = {
     'profile_astatsnl': true,
     'profile_permalink': true,
     'profile_custom_link': [
-        { 'enabled': false, 'name': "Google", 'url': "google.com/search?q=[ID]", 'icon': "www.google.com/images/branding/product/ico/googleg_lodp.ico", },
+        { 'enabled': true, 'name': "Google", 'url': "google.com/search?q=[ID]", 'icon': "www.google.com/images/branding/product/ico/googleg_lodp.ico", },
     ],
     'steamcardexchange': true,
     'purchase_dates': true,
@@ -706,45 +709,6 @@ class HTML {
 
     static afterEnd(node, html) {
         HTML.adjacent(node, "afterend", html);
-    }
-
-
-    static async applyCSSTransition(node, prop, initialValue, finalValue, duration, callback) {
-        if (typeof node == 'string') {
-            node = document.querySelector(node);
-        }
-        node.style.transition = '';
-        node.style[prop] = initialValue;
-
-        if (window.getComputedStyle(node).display == 'none') {
-            node.style.display = 'inherit';
-            await sleep(0); // transition events don't fire if the element is display: none
-        }
-
-        node.style.transition = `${prop} ${duration}ms`;
-        node.style[prop] = finalValue;
-
-        return new Promise(function (resolve, reject) {
-            function transitionEnd(ev) {
-                node.style.transition = '';
-                resolve(node);
-                if (callback) {
-                    callback(node);
-                }
-            }
-            node.addEventListener('transitionend', transitionEnd, { 'once': true, });
-            node.addEventListener('mozTransitionEnd', transitionEnd, { 'once': true, }); // FF52, deprefixed in FF53
-            node.addEventListener('webkitTransitionEnd', transitionEnd, { 'once': true, }); // Chrome <74
-        });
-    }
-
-    static fadeIn(node, duration=400) {
-        return HTML.applyCSSTransition(node, 'opacity', 0, 1, duration, null);
-    }
-
-    static fadeOut(node, duration=400) {
-        return HTML.applyCSSTransition(node, 'opacity', 1, 0, duration, null)
-            .then((node) => { node.style.display = 'none'; return node; });
     }
 }
 

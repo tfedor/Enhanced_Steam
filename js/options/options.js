@@ -4,12 +4,62 @@ class SaveIndicator {
     static show() {
         let node = document.getElementById('saved');
         if (!node) { return; }
-        HTML.fadeIn(node)
-            .then(() => sleep(600))
-            .then(() => HTML.fadeOut(node));
+        Fader.fadeInFadeOut(node);
     }
 
 }
+
+class Fader {
+
+    /*
+     * TODO (tfedor) I think we can move this completely to CSS
+     */
+
+    static async applyCSSTransition(node, property, initialValue, finalValue, durationMs) {
+        node.style.transition = '';
+        node.style[property] = initialValue;
+
+        await sleep(0);
+
+        node.style.transition = `${property} ${durationMs}ms`;
+        node.style[property] = finalValue;
+
+        // TODO (tfedor) I'm not sure about this promise, when we reset transitions how/when will it resolve
+        return new Promise((resolve, reject) => {
+            function transitionEnd() {
+                // Check if there isn't already another transition for the same property ongoing
+                if (node.style[property] == finalValue) {
+                    node.style.transition = '';
+                }
+
+                resolve(node);
+            }
+
+            node.addEventListener('transitionend', transitionEnd, { 'once': true, });
+            node.addEventListener('mozTransitionEnd', transitionEnd, { 'once': true, }); // FF52, deprefixed in FF53
+            node.addEventListener('webkitTransitionEnd', transitionEnd, { 'once': true, }); // Chrome <74
+        });
+    }
+
+    static async fadeIn(node, duration = 400) {
+        return Fader.applyCSSTransition(node, 'opacity', 0, 1, duration);
+    }
+
+    static async fadeOut(node, duration = 400) {
+        await Fader.applyCSSTransition(node, 'opacity', 1, 0, duration);
+    }
+
+    static async fadeInFadeOut(node, fadeInDuration = 400, fadeOutDuration = 400, idleDuration = 600) {
+        await this.fadeIn(node, fadeInDuration);
+        await sleep(idleDuration);
+
+        // Don't fade out when there's already another transition fading in
+        if (!node.style.transition || node.style.transition === "none") {
+            return Fader.fadeOut(node, fadeOutDuration);
+        }
+    }
+}
+
 
 class CustomLinks {
 
@@ -17,7 +67,7 @@ class CustomLinks {
 
         let links = SyncedStorage.get('profile_custom_link');
         for (let link of links) {
-            CustomLinks.create(link);
+            CustomLinks.show(link);
         }
 
         document
@@ -28,7 +78,7 @@ class CustomLinks {
     }
 
     // TODO (KarlCastle?) Want to replace this with a CustomElement when the support is wider. CustomElements were added in FF63.
-    static create(link) {
+    static show(link) {
         let customLinkTemplate = document.getElementById('add_custom_profile_link');
         let node = document.importNode(customLinkTemplate.content, true).firstElementChild;
 
@@ -47,10 +97,11 @@ class CustomLinks {
         node.addEventListener('change', CustomLinks.save);
         node.querySelector('.custom-link__close')
             .addEventListener('click', CustomLinks.remove, false);
+    }
 
+    static create(link) {
+        CustomLinks.show(link);
         CustomLinks.save();
-
-        return node;
     }
 
     static read(node) {
@@ -336,13 +387,10 @@ let Options = (function(){
         if (!confirm(Localization.str.options.clear)) { return; }
         SyncedStorage.clear();
         SyncedStorage.then(loadOptions);
-        // FIXME $("#reset_note").stop(true,true).fadeIn().delay(600).fadeOut();
+
         let node = document.getElementById('reset_note');
         if (node) {
-            HTML.fadeIn(node)
-                .then(() => sleep(600))
-                .then(() => HTML.fadeOut(node))
-                ;
+            Fader.fadeInFadeOut(node);
         }
     }
 
@@ -351,7 +399,7 @@ let Options = (function(){
 
         let nodes = document.querySelectorAll("#region_selects div.country_parent");
         for (let node of nodes) {
-            nodes[i].remove();
+            node.remove();
         }
 
         Region.populateRegionalSelects();

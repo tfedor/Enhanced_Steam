@@ -21,19 +21,25 @@ body {
 }
 
 .notification {
-	float:right;
-	font-size: 2em;
+	line-height: 40px;
+	font-size: 1rem;
+	opacity: 0;
+	position: fixed;
+	padding: 15px;
+	bottom: 0;
+	left: 200px;
+	right: 0;
+	display: flex;
+	align-items: center;
 	font-weight: bold;
-	padding:24px;
-	display:none;
+	background-color: #02ba55;
+	z-index: 999;
+	pointer-events: none;
 }
 
-#saved {
-	color:#8BC53F;
-}
-
-#reset_note {
-	color:#CF6A32;
+.notification img {
+	height: 1.5rem;
+	padding: 0 10px;
 }
 
 #page {
@@ -69,6 +75,7 @@ body {
 .content {
 	padding:15px;
 	display:none;
+	margin-bottom: 100px;
 }
 .content.selected {
 	display:block;

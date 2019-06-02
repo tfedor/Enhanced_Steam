@@ -43,8 +43,6 @@
 
 <div id="header">
     <div id="header_logo"><img src="img/logo.png"></div>
-    <span class="notification" id="saved" data-locale-text="options.saved_note">Options saved</span>
-    <span class="notification" id="reset_note" data-locale-text="options.reset_note">Options reset</span>
 </div>
 
 <div id="page">
@@ -265,11 +263,11 @@
             <h2 id="store_general" data-locale-text="options.general">General</h2>
             <div>
                 <input type="checkbox" id="show_progressbar" data-setting="show_progressbar">
-                <label for="show_progressbar" id="show_progressbar_text">Show progress and status bar of this extension</label>
+                <label for="show_progressbar" id="show_progressbar_text" data-locale-text="show_progressbar">Show progress and status bar of this extension</label>
             </div>
             <div>
                 <input type="checkbox" id="version_show" data-setting="version_show">
-                <label for="version_show" id="version_show_text">Show change log when this extension updates</label>
+                <label for="version_show" id="version_show_text" data-locale-text="options.version_show">Show change log when this extension updates</label>
             </div>
             <div>
                 <input type="checkbox" id="replaceaccountname" data-setting="replaceaccountname">
@@ -284,8 +282,8 @@
                 <label for="showemptywishlist" id="store_hide_empty_wishlist" data-locale-text="options.show_empty_wishlist">Show "Empty Wishlist" button</label>
             </div>
             <div>
-                <input type="checkbox" id="showwlnotes" data-setting="showwlnotes">
-                <label for="showwlnotes" id="store_show_wl_notes" data-locale-text="options.show_wl_notes">Show wishlist notes on wishlist</label>
+                <input type="checkbox" id="showusernotes" data-setting="showusernotes">
+                <label for="showusernotes" id="store_show_user_notes" data-locale-text="options.show_user_notes">Show user notes on wishlist and app pages</label>
             </div>
             <div>
                 <input type="checkbox" id="send_age_info" data-setting="send_age_info">
@@ -435,7 +433,7 @@
                 <div>
                     <label id="viewprice_text" data-locale-text="options.view_in_currency">View in:</label>
                     <select id="override_price" data-setting="override_price">
-                        <option value="auto">Auto-detect</option>
+                        <option value="auto" data-locale-text="options.auto_detect">Auto-detect</option>
                         <option value="USD">USD</option>
                     </select>
                 </div>
@@ -627,7 +625,7 @@
 
         <div id="maincontent_about" class="content">
             <div id="es_about_text">
-                <h2>About</h2>
+                <h2 data-locale-text="about">About</h2>
                 <p>This is a fork of the Enhanced Steam extension.</p>
 
                 <p>We are committed to continuing its development after the <a href="https://github.com/jshackles/Enhanced_Steam">original extension</a> has ended its life.</p>
@@ -638,7 +636,7 @@
 
         <div id="maincontent_credits" class="content">
 
-            <h2>This version</h2>
+            <h2 data-locale-text="this_version">This version</h2>
 
             <h3 data-locale-text="programming">Programming</h3>
             <ul class="credits">
@@ -647,7 +645,7 @@
                 <li>MxtOUT (<a href="https://steamcommunity.com/id/makko2305/">Makk0</a>)</li>
             </ul>
 
-            <h2>Original authors</h2>
+            <h2 data-locale-text="original_authors">Original authors</h2>
             <h3 data-locale-text="programming">Programming</h3>
             <ul class="credits">
                 <li>Jason Shackles (<a href="http://steamcommunity.com/profiles/76561198040672342" id="jshackles_steam">jshackles</a>)</li>
@@ -667,7 +665,7 @@
                 </tr>
                 <tr>
                     <td class="language bulgarian">Bulgarian:</td>
-                    <td>Castro Wilde, The Nominomicon, XepouH</td>
+                    <td>Castro Wilde, The Nominomicon, XepouH, sappy</td>
                 </tr>
                 <tr>
                     <td class="language czech">Czech:</td>
@@ -735,7 +733,7 @@
                 <tr>
                     <td class="language polish">Polish:</td>
                     <td>AciD, Bednar, Laserman//^^, Lordomus, Parseus, Xylo, Yobilat, Yocki,
-                        devLewy, mahon, skubi07
+                        devLewy, mahon, skubi07, przemo20
                     </td>
                 </tr>
                 <tr>
@@ -775,7 +773,7 @@
                 <tr>
                     <td class="language tchinese">Traditional Chinese:</td>
                     <td>Atraveller, JD OwO, Lex Song, MoDMeR, Mr. Error, NOKIA SE, Rasin, omylist,
-                        tonyli1357, 破曉之殤丶Revelation, Cattī Crūdēlēs
+                        tonyli1357, 破曉之殤丶Revelation, Cattī Crūdēlēs, Gaz
                     </td>
                 </tr>
                 <tr>
@@ -795,9 +793,24 @@
                     </td>
                 </tr>
             </table>
+
+            <h2>Other</h2>
+            <h3>Images</h3>
+
+            <ul class="credits">
+                <li>"<a href="https://www.svgrepo.com/svg/5133/save">Save SVG Vector</a>" is licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a></li>
+            </ul>
         </div>
     </div>
 
+    <div class="notification" id="saved">
+        <img src="img/save.svg">
+        <span data-locale-text="options.saved_note">Options saved</span>
+    </div>
+
+    <div class="notification" id="reset_note">
+        <span data-locale-text="options.reset_note">Options reset</span>
+    </div>
 </div>
 
 <div id="footer">
