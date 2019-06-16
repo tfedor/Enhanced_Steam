@@ -1,5 +1,5 @@
 const Info = {
-    'version': "1.0.0",
+    'version': "1.1.0",
 };
 
 /**
@@ -488,6 +488,8 @@ SyncedStorage.defaults = {
     'showitadlinks': true,
     'showsteamdb': true,
     'showastatslink': true,
+    'showyoutubegameplay': true,
+    'showyoutubereviews': true,
     'showwsgf': true,
     'exfgls': true,
 
@@ -614,6 +616,13 @@ class ExtensionResources {
  * Default RegExp: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
  */
 (function() {
+    /**
+     * NOTE FOR ADDON REVIEWER:
+     * We are modifying default DOMPurify settings to to allow other protocols in URLs.
+     * We took the original Regex and aded chrome-extension://, moz-extension:// and steam://
+     * First two are needed for linking local resources from extension,
+     * steam:// protocol is used by Steam store to open their own client (e.g. when you want to launch a game).
+     */
     DOMPurify.setConfig({ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp|chrome-extension|moz-extension|steam):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i});
 })();
 
