@@ -119,7 +119,7 @@ class Background {
 /**
  * Event handler for uncaught Background errors
  */
-window.addEventListener('unhandledrejection', function(ev) {
+function unhandledrejection(ev) {
     let err = ev.reason;
     if (!err || !err.error) return; // Not a background error
     ev.preventDefault();
@@ -128,8 +128,9 @@ window.addEventListener('unhandledrejection', function(ev) {
     console.error(err.localStack);
     console.error(err.stack);
     console.groupEnd();
-});
+}
 
+window.addEventListener('unhandledrejection', unhandledrejection);
 
 let TimeHelper = (function(){
 
@@ -295,86 +296,35 @@ CookieStorage.cache = new Map();
 let RequestData = (function(){
     let self = {};
 
-    self.getJson = function(url) {
-        ProgressBar.startRequest();
-
-        return new Promise(function(resolve, reject) {
-            function requestHandler(state) {
-                if (state.readyState !== 4) {
-                    return;
-                }
-
-                ProgressBar.finishRequest();
-
-                if (state.status === 200) {
-                    resolve(JSON.parse(state.responseText));
-                } else {
-                    ProgressBar.failed();
-                    reject(state.status);
-                }
-            }
-
-            if (url.startsWith("//")) { // TODO remove when not needed
-                url = window.location.protocol + url;
-                console.warn("Requesting URL without protocol, please update");
-            }
-
-            let request = new XMLHttpRequest();
-            request.onreadystatechange = function() { requestHandler(request); };
-            request.overrideMimeType("application/json");
-            request.open("GET", url);
-            request.send();
-        });
-    };
-
-    self.getHttp = function(url, settings, returnHtml) {
+    self.getHttp = function(url, settings, returnJSON) {
         settings = settings || {};
-        settings.withCredentials = settings.withCredentials || false;
-        settings.type = settings.type || "text/html";
         settings.method = settings.method || "GET";
-        settings.body = settings.body || null;
+        settings.credentials = settings.credentials || "include";
+        settings.headers = settings.headers || { origin: window.location.origin };
+        settings.referrer = settings.referrer || window.location.origin + window.location.pathname;
 
         ProgressBar.startRequest();
 
-        return new Promise(function(resolve, reject) {
+        if (url.startsWith("//")) { // TODO remove when not needed
+            url = window.location.protocol + url;
+            console.warn("Requesting URL without protocol, please update");
+        }
 
-            function requestHandler(state) {
-                if (state.readyState !== 4) {
-                    return;
-                }
+        return fetch(url, settings).then(response => {
 
-                ProgressBar.finishRequest();
+            ProgressBar.finishRequest();
 
-                if (state.status === 200) {
-                    if (returnHtml) {
-                        resolve(state.responseXML);
-                    } else {
-                        resolve(state.responseText);
-                    }
-                } else {
-                    ProgressBar.failed();
-                    reject(state.status);
-                }
+            if (!response.ok) { throw new Error(`HTTP ${response.status} ${response.statusText} for ${response.url}`) }
+
+            if (returnJSON) {
+                return response.json();
+            } else {
+                return response.text();
             }
-
-            if (url.startsWith("//")) { // TODO remove when not needed
-                url = window.location.protocol + url;
-                console.warn("Requesting URL without protocol, please update");
-            }
-
-            let request = new XMLHttpRequest();
-            request.onreadystatechange = function() { requestHandler(request); };
-            request.overrideMimeType(settings.type);
-            request.withCredentials = settings.withCredentials;
-            request.open(settings.method, url);
-
-            if (settings.headers) {
-                for (let i=0; i<settings.headers.length; i++) {
-                    request.setRequestHeader(settings.headers[i][0], settings.headers[i][1]);
-                }
-            }
-
-            request.send(settings.body);
+            
+        }).catch(err => {
+            ProgressBar.failed();
+            throw err;
         });
     };
 
@@ -383,6 +333,10 @@ let RequestData = (function(){
             method: "POST",
             body: formData
         }));
+    };
+
+    self.getJson = function(url, settings) {
+        return self.getHttp(url, settings, true);
     };
 
     return self;
@@ -920,6 +874,10 @@ let EnhancedSteam = (function() {
         });
     };
 
+    function addWarning(innerHTML) {
+        HTML.afterEnd("#global_header", `<div class="es_warning">${innerHTML}</div>`);
+    }
+
     /**
      * Display warning if browsing using a different language
      */
@@ -932,10 +890,9 @@ let EnhancedSteam = (function() {
         if (currentLanguage === warningLanguage) { return; }
 
         Localization.loadLocalization(Language.getLanguageCode(warningLanguage)).then(function(strings){
-            HTML.afterEnd("#global_header",
-                `<div class="es_language_warning">` + strings.using_language.replace("__current__", strings.options.lang[currentLanguage] || currentLanguage) + `
-                    <a href="#" id="es_reset_language_code">` + strings.using_language_return.replace("__base__", strings.options.lang[warningLanguage] || warningLanguage) + `</a>
-                </div>`);
+            addWarning(
+                `${strings.using_language.replace("__current__", strings.options.lang[currentLanguage] || currentLanguage)}
+                <a href="#" id="es_reset_language_code">${strings.using_language_return.replace("__base__", strings.options.lang[warningLanguage] || warningLanguage)}</a>`);
 
             document.querySelector("#es_reset_language_code").addEventListener("click", function(e){
                 e.preventDefault();
@@ -943,6 +900,17 @@ let EnhancedSteam = (function() {
             });
         });
     };
+
+    let loginWarningAdded = false;
+    self.addLoginWarning = function(err) {
+        if (!loginWarningAdded) {
+            addWarning(`${Localization.str.community_login.replace("__link__", "<a href='https://steamcommunity.com/login/'>steamcommunity.com</a>")}`);
+            loginWarningAdded = true;
+        }
+
+        // Triggers the unhandledrejection handler, so that the error is not fully suppressed
+        Promise.reject(err);
+    }
 
     self.removeAboutLinks = function() {
         if (!SyncedStorage.get("hideaboutlinks")) { return; }
@@ -970,14 +938,24 @@ let EnhancedSteam = (function() {
         removeLinksFilter();
 
         let observer = new MutationObserver(removeLinksFilter);
-        observer.observe(document, {attributes: true, childList: true});
+        observer.observe(document, {childList: true, subtree: true});
 
-        function removeLinksFilter() {
-            let nodes = document.querySelectorAll("a.bb_link[href*='/linkfilter/'], div.weblink a[href*='/linkfilter/']");
-            for (let i=0, len=nodes.length; i<len; i++) {
-                let node = nodes[i];
-                if (!node.hasAttribute("href")) { continue; }
-                node.setAttribute("href", node.getAttribute("href").replace(/^.+?\/linkfilter\/\?url=/, ""));
+        function removeLinksFilter(mutations) {
+            let selector = "a.bb_link[href*='/linkfilter/'], div.weblink a[href*='/linkfilter/']";
+            if (mutations) {
+                mutations.forEach(mutation => {
+                    mutation.addedNodes.forEach(node => {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            node.querySelectorAll(selector).forEach(matchedNode => {
+                                matchedNode.setAttribute("href", matchedNode.getAttribute("href").replace(/^.+?\/linkfilter\/\?url=/, ""));
+                            });
+                        }
+                    });
+                });
+            } else {
+                document.querySelectorAll(selector).forEach(node => {
+                    node.setAttribute("href", node.getAttribute("href").replace(/^.+?\/linkfilter\/\?url=/, ""));
+                });
             }
         }
     };
@@ -1304,10 +1282,11 @@ let Inventory = (function(){
                 }
             }
         }
+        
         _promise = Promise.all([
-            Background.action('inventory.gifts').then(({ 'gifts': x, 'passes': y, }) => { gifts = new Set(x); guestpasses = new Set(y); }),
-            Background.action('inventory.coupons').then(handleCoupons),
-            Background.action('inventory.community').then(inv6 => inv6set = new Set(inv6)),
+            Background.action('inventory.gifts').then(({ 'gifts': x, 'passes': y, }) => { gifts = new Set(x); guestpasses = new Set(y); }, EnhancedSteam.addLoginWarning),
+            Background.action('inventory.coupons').then(handleCoupons, EnhancedSteam.addLoginWarning),
+            Background.action('inventory.community').then(inv6 => inv6set = new Set(inv6), EnhancedSteam.addLoginWarning),
             ]);
         return _promise;
     };
@@ -1485,7 +1464,7 @@ let Highlights = (function(){
                 let color = SyncedStorage.get(`highlight_${name}_color`);
                 hlCss.push(
                    `.es_highlighted_${name} { background: ${color} linear-gradient(135deg, rgba(0, 0, 0, 0.70) 10%, rgba(0, 0, 0, 0) 100%) !important; }
-                    .carousel_items .es_highlighted_${name}.price_inline, .curator_giant_capsule.es_highlighted_${name} { outline: solid ${color}; }
+                    .carousel_items .es_highlighted_${name}.price_inline, .curator_giant_capsule.es_highlighted_${name}, .hero_capsule.es_highlighted_${name} { outline: solid ${color}; }
                     .apphub_AppName.es_highlighted_${name} { background: none !important; color: ${color}; }`);
             });
 
@@ -1673,7 +1652,8 @@ let Highlights = (function(){
             ".tab_item",					                // Items on new homepage
             "a.special",					                // new homepage specials
             "div.curated_app_item",			                // curated app items!
-            "a.summersale_dailydeal"		                // Summer sale daily deal
+            ".hero_capsule",                                // Summer sale "Featured"
+            ".sale_capsule"                                 // Summer sale general capsules
         ];
 
         parent = parent || document;
