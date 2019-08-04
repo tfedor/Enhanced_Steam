@@ -1,5 +1,5 @@
 const Info = {
-    'version': "1.1.1",
+    'version': "1.2.0",
 };
 
 /**
@@ -111,7 +111,7 @@ class Version {
 
 class UpdateHandler {
 
-    static checkVersion() {
+    static checkVersion(onUpdate) {
         let lastVersion = Version.fromString(SyncedStorage.get("version"));
         let currentVersion = Version.fromString(Info.version);
 
@@ -119,6 +119,7 @@ class UpdateHandler {
             if (SyncedStorage.get("version_show")) {
                 this._showChangelog();
             }
+            onUpdate();
             this._migrateSettings(lastVersion);
         }
 
@@ -537,6 +538,7 @@ SyncedStorage.defaults = {
     'skip_got_steam': false,
 
     'hideaboutlinks': false,
+    'openinnewtab': false,
     'keepssachecked': false,
     'showemptywishlist': true,
     'showusernotes': true,
@@ -583,6 +585,7 @@ SyncedStorage.defaults = {
     'steamcardexchange': true,
     'purchase_dates': true,
     'show_badge_progress': true,
+    'show_coupon': true,
     'show_wishlist_link': true,
     'show_wishlist_count': true,
     'show_progressbar': true,
@@ -611,19 +614,51 @@ class ExtensionResources {
 }
 
 /**
- * Allow links to own extension (e.g. options.html)
+ * DOMPurify setup
  * @see https://github.com/cure53/DOMPurify
- * Default RegExp: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
  */
-(function() {
+(async function() {
+    let allowOpenInNewTab = SyncedStorage.defaults.openinnewtab;
+    try {
+        await SyncedStorage;
+        allowOpenInNewTab = SyncedStorage.get("openinnewtab");
+    } catch(e) {
+        console.error(e);
+    }
+
     /**
      * NOTE FOR ADDON REVIEWER:
-     * We are modifying default DOMPurify settings to to allow other protocols in URLs.
+     * We are modifying default DOMPurify settings to allow other protocols in URLs
+     * and to allow links to safely open in new tabs.
+     *
      * We took the original Regex and aded chrome-extension://, moz-extension:// and steam://
      * First two are needed for linking local resources from extension,
      * steam:// protocol is used by Steam store to open their own client (e.g. when you want to launch a game).
+     * 
+     * The addition of the `target` attribute to the allowed attributes is done in order to be able to open links in a new tab.
+     * We only allow target="_blank" while adding rel="noreferrer noopener" to prevent child window to access window.opener
+     * as described in https://www.jitbit.com/alexblog/256-targetblank---the-most-underestimated-vulnerability-ever/
      */
-    DOMPurify.setConfig({ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp|chrome-extension|moz-extension|steam):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i});
+
+    let purifyConfig = {
+        ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp|chrome-extension|moz-extension|steam):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
+    };
+
+    if (allowOpenInNewTab) {
+        purifyConfig.ADD_ATTR = ["target"];
+
+        DOMPurify.addHook("uponSanitizeAttribute", (node, data) => {
+            if (data.attrName === "target") {
+                if (data.attrValue === "_blank") {
+                    node.setAttribute("rel", "noreferrer noopener");
+                } else {
+                    data.keepAttr = false;
+                }
+            }
+        });
+    }
+
+    DOMPurify.setConfig(purifyConfig);
 })();
 
 class HTML {
