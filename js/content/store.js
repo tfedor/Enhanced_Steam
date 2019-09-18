@@ -2554,10 +2554,10 @@ let SearchPageClass = (function(){
             return tagsValue ? tagsValue.split(',') : [];
         }
 
-        for (let i=0, len=tarFilterDivs.length; i<len; i++) {
-            let val = tarFilterDivs[i];
+        let tags = getTags();
 
-            let item_checked = getTags().indexOf("-"+val.dataset.value) > -1 ? "checked" : "";
+        for (let val of tarFilterDivs) {
+            let item_checked = tags.indexOf(`-${val.dataset.value}`) > -1 ? "checked" : '';
 
             let excludeItem = HTMLParser.htmlToElement(
                 `<div class="tab_filter_control ${item_checked}" data-param="tags" data-value="-${val.dataset.value}" data-loc="${val.dataset.loc}">
@@ -2565,8 +2565,8 @@ let SearchPageClass = (function(){
                     <span class="tab_filter_control_label">${val.dataset.loc}</span>
                 </div>`);
 
-            excludeItem.addEventListener("click", function(e) {
-                let control = e.target.closest(".tab_filter_control")
+            excludeItem.addEventListener("click", e => {
+                let control = e.target.closest(".tab_filter_control");
 
                 let rgValues = getTags();
                 let value = String(control.dataset.value);
@@ -2586,8 +2586,7 @@ let SearchPageClass = (function(){
                 }
 
                 control.classList.toggle('checked');
-                document.querySelector("#tags").value = rgValues.join(',');
-                ExtensionLayer.runInPageContext(() => AjaxSearchResults());
+                filtersChanged();
             });
 
             excludeContainer.append(excludeItem);
@@ -2648,19 +2647,38 @@ let SearchPageClass = (function(){
         return Number(reviewsString) < reviewsBelow;
     }
 
+    function isTagExcluded(node, tags) {
+        if (!node.dataset.dsTagids) return false;
+        let nodeTags = JSON.parse(node.dataset.dsTagids);
+        return nodeTags.some(tag => tags.includes(tag));
+    }
+
     function filtersChanged(nodes = document.querySelectorAll(".search_result_row")) {
+        let hideOwned = document.querySelector("#es_owned_games.checked");
+        let hideWishlisted = document.querySelector("#es_wishlist_games.checked");
+        let hideInCart = document.querySelector("#es_cart_games.checked");
+        let hideNotDiscounted = document.querySelector("#es_notdiscounted_games.checked");
+        let hideNotInterested = document.querySelector("#es_notinterested.checked");
+        let hideMixed = document.querySelector("#es_notmixed.checked");
+        let hideNegative = document.querySelector("#es_notnegative.checked");
+        let hidePriceAbove = document.querySelector("#es_notpriceabove.checked");
+        let hideReviewsBelow = document.querySelector("#es_noreviewsbelow.checked");
+
         let priceAbove = Number(document.querySelector("#es_notpriceabove_val").value.replace(',', '.'));
         let reviewsBelow = Number(document.querySelector("#es_noreviewsbelow_val").value);
+        let hideTags = Array.from(document.querySelectorAll("#es_tagfilter_exclude_container > .checked")).map(tag => Math.abs(Number(tag.dataset.value)));
+
         for (let node of nodes) {
-            if (document.querySelector("#es_owned_games.checked") && node.classList.contains("ds_owned")) { node.style.display = "none"; continue; }
-            if (document.querySelector("#es_wishlist_games.checked") && node.classList.contains("ds_wishlist")) { node.style.display = "none"; continue; }
-            if (document.querySelector("#es_cart_games.checked") && node.classList.contains("ds_incart")) { node.style.display = "none"; continue; }
-            if (document.querySelector("#es_notdiscounted.checked") && !node.querySelector(".search_discount span")) { node.style.display = "none"; continue; }
-            if (document.querySelector("#es_notinterested.checked") && node.classList.contains("ds_ignored")) { node.style.display = "none"; continue; }
-            if (document.querySelector("#es_notmixed.checked") && node.querySelector(".search_reviewscore span.search_review_summary.mixed")) { node.style.display = "none"; continue; }
-            if (document.querySelector("#es_notnegative.checked") && node.querySelector(".search_reviewscore span.search_review_summary.negative")) { node.style.display = "none"; continue; }
-            if (document.querySelector("#es_notpriceabove.checked") && isPriceAbove(node, priceAbove)) { node.style.display = "none"; continue; }
-            if (document.querySelector("#es_noreviewsbelow.checked") && isReviewsBelow(node, reviewsBelow)) { node.style.display = "none"; continue; }
+            if (hideOwned && node.classList.contains("ds_owned")) { node.style.display = "none"; continue; }
+            if (hideWishlisted && node.classList.contains("ds_wishlist")) { node.style.display = "none"; continue; }
+            if (hideInCart && node.classList.contains("ds_incart")) { node.style.display = "none"; continue; }
+            if (hideNotDiscounted && !node.querySelector(".search_discount span")) { node.style.display = "none"; continue; }
+            if (hideNotInterested && node.classList.contains("ds_ignored")) { node.style.display = "none"; continue; }
+            if (hideMixed && node.querySelector(".search_reviewscore span.search_review_summary.mixed")) { node.style.display = "none"; continue; }
+            if (hideNegative && node.querySelector(".search_reviewscore span.search_review_summary.negative")) { node.style.display = "none"; continue; }
+            if (hidePriceAbove && isPriceAbove(node, priceAbove)) { node.style.display = "none"; continue; }
+            if (hideReviewsBelow && isReviewsBelow(node, reviewsBelow)) { node.style.display = "none"; continue; }
+            if (hideTags.length && isTagExcluded(node, hideTags)) { node.style.display = "none"; continue; }
             node.style.display = "block";
         }
     }
@@ -2749,10 +2767,7 @@ let SearchPageClass = (function(){
 
             GDynamicStore.OnReady(() => {
 
-                // Callback that will fire when the user browses through pages
-                ${!SyncedStorage.get("contscroll") ? `Ajax.Responders.register({ onComplete: () => Messenger.postMessage("ajaxCompleted") });` : ""}
-
-                // For each AS hide filter
+                // For each AS filter
                 $J(".tab_filter_control[id^='es_']").each(function() {
                     let $Control = $J(this);
                     $Control.click(() => updateURL($Control));
@@ -3046,40 +3061,44 @@ let SearchPageClass = (function(){
         let inputObserver = new MutationObserver(modifyLinks);
         inputObserver.observe(hiddenInput, {attributes: true, attributeFilter: ["value"]});
 
-        let contscrollObserver;
-        if (SyncedStorage.get("contscroll")) {
-            contscrollObserver = new MutationObserver(mutations => {
-                EarlyAccess.showEarlyAccess();
-                mutations.forEach(mutation => {
-                    Highlights.highlightAndTag(mutation.addedNodes);
-                    filtersChanged(mutation.addedNodes);
-                });
+        let removeObserver = new MutationObserver(mutations => {
+            mutations.forEach(mutation => {
+                for (let node of mutation.addedNodes) {
+                    // Under certain circumstances the search result container will get removed and then added again, thus disconnecting the MutationObserver
+                    if (node.id === "search_result_container") {
+                        observeAjax(node.querySelectorAll(".search_result_row"));
+                        
+                        if (!SyncedStorage.get("contscroll")) {
+                            toggleFilter("price-above", "#es_notpriceabove");
+                            toggleFilter("reviews-below", "#es_noreviewsbelow");
+                            modifyLinks();
+                            filtersChanged();
+                        }
+                        ajaxObserver.observe(node.querySelector("#search_resultsRows"), {childList: true});
+                        break;
+                    }
+                }
             });
-            contscrollObserver.observe(document.querySelectorAll("#search_result_container > div")[1], {childList: true});
+        });
+        removeObserver.observe(document.querySelector("#search_results"), { childList: true });
+
+        function observeAjax(addedNodes) {
+            EarlyAccess.showEarlyAccess();
+            
+            Highlights.highlightAndTag(addedNodes);
+            filtersChanged(addedNodes);
         }
 
-        Messenger.addMessageListener("ajaxCompleted", () => {
-            if (SyncedStorage.get("contscroll")) {
-                mutations.forEach(mutation => {
-                    for (let node of mutation.removedNodes) {
-                        // Under certain circumstances the search result container will get removed and then added again, thus disconnecting the MutationObserver
-                        if (node.id && node.id === "search_result_container") {
-                            contscrollObserver.observe(document.querySelectorAll("#search_result_container > div")[1], {childList: true});
-                            break;
-                        }
-                    }
-                })
-            } else {
-                toggleFilter("price-above", "#es_notpriceabove");
-                toggleFilter("reviews-below", "#es_noreviewsbelow");
-                modifyLinks();
+        let ajaxObserver = new MutationObserver(mutations => {
+            let rows = [];
+            for (let mutation of mutations) {
+                rows = rows.concat(
+                    Array.from(mutation.addedNodes).filter(node => node.classList && node.classList.contains("search_result_row"))
+                );
             }
-
-            EarlyAccess.showEarlyAccess();
-
-            Highlights.highlightAndTag(document.querySelectorAll(".search_result_row"));
-            filtersChanged();
-        }, false);
+            observeAjax(rows);
+        });
+        ajaxObserver.observe(document.querySelector("#search_resultsRows"), {childList: true});
     };
 
     return SearchPageClass;
