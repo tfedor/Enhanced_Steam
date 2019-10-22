@@ -405,7 +405,8 @@ let ProfileActivityPageClass = (function(){
             let links = node.querySelectorAll("a:not(.blotter_gamepurchase_logo)");
             for (let link of links) {
                 let appid = GameId.getAppid(link.href);
-                if (!appid || link.childElementCount !== 0) { continue; }
+                if (!appid || link.childElementCount > 1) { continue; }
+                if (link.childElementCount === 1 && link.closest(".vote_header")) { continue; }
 
                 if (DynamicStore.isOwned(appid)) {
                     Highlights.highlightOwned(link);
@@ -515,6 +516,11 @@ let ProfileHomePageClass = (function(){
                 "id": "steamtrades",
                 "link": `https://www.steamtrades.com/user/${steamId}`,
                 "name": "SteamTrades",
+            },
+            {
+                "id": "bartervg",
+                "link": `//barter.vg/steam/${steamId}`,
+                "name": "Barter.vg",
             },
             {
                 "id": "astats",
@@ -1691,11 +1697,10 @@ let InventoryPageClass = (function(){
         if (quickGrind) { quickGrind.parentNode.remove(); }
 
         let scrapActions = document.querySelector("#iteminfo" + item + "_item_scrap_actions");
-        let turnWord = scrapActions.querySelector("a span").textContent;
 
         let divs = scrapActions.querySelectorAll("div");
         HTML.beforeBegin(divs[divs.length-1],
-            "<div><a class='btn_small btn_green_white_innerfade' id='es_quickgrind'><span>1-Click " + turnWord + "</span></div>");
+            `<div><a class='btn_small btn_green_white_innerfade' id='es_quickgrind'><span>${Localization.str.oneclickgoo}</span></div>`);
 
         // TODO: Add prompt?
         document.querySelector("#es_quickgrind").addEventListener("click", function(e) {
@@ -1982,15 +1987,15 @@ let InventoryPageClass = (function(){
             });
         });
         
-        Messenger.addMessageListener("sendMessage", info => inventoryMarketHelper(info), false);
+        Messenger.addMessageListener("sendMessage", info => inventoryMarketHelper(info));
 
-        Messenger.addMessageListener("sendFee", info => {
-            let sellPrice = info.feeInfo.amount - info.feeInfo.fees;
+        Messenger.addMessageListener("sendFee", async ({ feeInfo, sessionID, global_id, contextID, assetID }) => {
+            let sellPrice = feeInfo.amount - feeInfo.fees;
             let formData = new FormData();
-            formData.append("sessionid", info.sessionID);
-            formData.append("appid", info.global_id);
-            formData.append("contextid", info.contextID);
-            formData.append("assetid", info.assetID);
+            formData.append("sessionid", sessionID);
+            formData.append("appid", global_id);
+            formData.append("contextid", contextID);
+            formData.append("assetid", assetID);
             formData.append("amount", 1);
             formData.append("price", sellPrice);
 
@@ -2002,17 +2007,15 @@ let InventoryPageClass = (function(){
             * referrer: window.location.origin + window.location.pathname
             */
 
-            RequestData.post("https://steamcommunity.com/market/sellitem/", formData, {
-                withCredentials: true
-            }).then(() => {
-                document.querySelector("#es_instantsell" + info.assetID).parentNode.style.display = "none";
+            await RequestData.post("https://steamcommunity.com/market/sellitem/", formData, { withCredentials: true });
 
-                let id = info.global_id + "_" + info.contextID + "_" + info.assetID;
-                let node = document.querySelector("[id='" + id + "']");
-                node.classList.add("btn_disabled", "activeInfo");
-                node.style.pointerEvents = "none";
-            });
-        }, false);
+            document.querySelector("#es_instantsell" + info.assetID).parentNode.style.display = "none";
+
+            let id = info.global_id + "_" + info.contextID + "_" + info.assetID;
+            let node = document.querySelector("[id='" + id + "']");
+            node.classList.add("btn_disabled", "activeInfo");
+            node.style.pointerEvents = "none";
+        });
     }
 
     function addInventoryGoToPage(){
@@ -3808,7 +3811,7 @@ let WorkshopBrowseClass = (function(){
             startSubscriber(method, total);
         });
 
-        function startSubscriber(method, total) {
+        async function startSubscriber(method, total) {
             let completed = 0;
             let failed = 0;
 
@@ -3893,7 +3896,7 @@ let WorkshopBrowseClass = (function(){
                 });
             }
 
-            Messenger.addMessageListener("startSubscriber", async function() {
+            Messenger.onMessage("startSubscriber").then(async () => {
                 updateWaitDialog();
 
                 function canSkip(method, node) {
@@ -3934,13 +3937,109 @@ let WorkshopBrowseClass = (function(){
                 total = workshopItems.length;
                 updateWaitDialog();
     
-                Promise.all(workshopItems.map(id => changeSubscription(id)))
+                return Promise.all(workshopItems.map(id => changeSubscription(id)))
                     .finally(showResults);
-            }, true)
+            });            
         }
     };
 
     return WorkshopBrowseClass;
+})();
+
+let EditGuidePageClass = (function(){
+
+    function EditGuidePageClass() {
+        this.allowMultipleLanguages();
+        this.addCustomTags();
+        this.rememberTags();
+    }
+
+    function addTag(name, checked=true) {
+        name = HTML.escape(name);
+        let attr = checked ? " checked" : "";
+        let tag = `<div><input type="checkbox" name="tags[]" value="${name}" class="inputTagsFilter"${attr}>${name}</div>`;
+        HTML.beforeBegin("#es_add_tag", tag);
+    }
+
+    EditGuidePageClass.prototype.allowMultipleLanguages = function() {
+        document.getElementsByName("tags[]").forEach(tag => tag.type = "checkbox");
+    };
+
+    EditGuidePageClass.prototype.addCustomTags = function() {
+        let langSection = document.querySelector("#checkboxgroup_1");
+        if (!langSection) { return; }
+
+        Messenger.addMessageListener("addtag", function(name) {
+            addTag(name, true);
+        });
+        
+        HTML.afterEnd(langSection,
+            `<div class="tag_category_container" id="checkboxgroup_2">
+                <div class="tag_category_desc">${Localization.str.custom_tags}</div>
+                <div><a style="margin-top: 8px;" class="btn_blue_white_innerfade btn_small_thin" id="es_add_tag">
+                    <span>${Localization.str.add_tag}</span>
+                </a></div>
+            </div>`);
+
+        ExtensionLayer.runInPageContext(`function() {
+            $J("#es_add_tag").on("click", () => {
+                let Modal = ShowConfirmDialog("${Localization.str.custom_tags}", \`<div class="commentthread_entry_quotebox"><textarea placeholder="${Localization.str.enter_tag}" class="commentthread_textarea es_tag" rows="1"></textarea></div>\`);
+                
+                let elem = $J(".es_tag");
+                let tag = elem.val();
+
+                function done() {
+                    if (tag.trim().length === 0) { return; }
+                    tag = tag[0].toUpperCase() + tag.slice(1);
+                    Messenger.postMessage("addtag", tag);
+                }
+
+                elem.on("keydown paste input", function(e) {
+                    tag = elem.val();
+                    if (e.key == "Enter") {
+                        Modal.Dismiss();
+                        done();
+                        return;
+                    }
+                });
+
+                Modal.done(done);
+            });
+        }`);
+    };
+
+    EditGuidePageClass.prototype.rememberTags = function() {
+        let submitBtn = document.querySelector("[href*=SubmitGuide]");
+        if (!submitBtn) { return; }
+
+        let params = new URLSearchParams(window.location.search);
+        let curId = params.get("id") || "recent";
+        let savedTags = LocalStorage.get("es_guide_tags", {});
+        if (!savedTags[curId]) {
+            savedTags[curId] = savedTags.recent || [];
+        }
+
+        for (let id in savedTags) {
+            for (let tag of savedTags[id]) {
+                let node = document.querySelector(`[name="tags[]"][value="${tag.replace(/"/g, "\\\"")}"]`);
+                if (node && curId == id) {
+                    node.checked = true;
+                } else if (!node) {
+                    addTag(tag, curId == id);
+                }
+            }
+        }
+
+        submitBtn.removeAttribute("href");
+        submitBtn.addEventListener("click", function() {
+            savedTags.recent = [];
+            savedTags[curId] = Array.from(document.querySelectorAll("[name='tags[]']:checked")).map(node => node.value);
+            LocalStorage.set("es_guide_tags", savedTags);
+            ExtensionLayer.runInPageContext(function() { SubmitGuide(); });
+        });
+    };
+
+    return EditGuidePageClass;
 })();
 
 (async function(){
@@ -4019,12 +4118,16 @@ let WorkshopBrowseClass = (function(){
             (new StatsPageClass());
             break;
 
-        case /^\/sharedfiles\/.*/.test(path):
+        case /^\/sharedfiles\/filedetails\/?$/.test(path):
             (new SharedFilesPageClass());
             break;
 
         case /^\/workshop\/browse/.test(path):
             (new WorkshopBrowseClass());
+            break;
+
+        case /^\/sharedfiles\/editguide\/?$/.test(path):
+            (new EditGuidePageClass());
             break;
 
         case /^\/tradingcards\/boostercreator/.test(path):

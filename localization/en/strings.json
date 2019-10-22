@@ -1,4 +1,8 @@
 {
+    "custom_tags": "Custom Tags",
+    "add_tag": "Add tag",
+    "enter_tag": "Enter the custom tag you'd like you add",
+    "oneclickgoo": "1-Click turn into Gems...",
     "view_in_library": "View in Library",
     "support": "Support",
     "email": "E-mail",
@@ -138,8 +142,8 @@
     "notinterested": "Items marked not interested",
     "mixed_item": "Mixed rating items",
     "negative_item": "Negative rating items",
-    "price_above":"Items that cost more than",
-    "price_above_tooltip":"Enter zero for free items or items without price tags; leave this field empty to disable this feature",
+    "price_above": "Items that cost more than",
+    "price_above_tooltip": "Enter zero for free items or items without price tags; leave this field empty to disable this feature",
     "price_above_wrong_format": "Wrong format, expected input in the form of __pattern__",
     "reviews_below":"Items with less reviews than",
     "reviews_below_tooltip":"Enter zero for items without reviews; leave this field empty to disable this feature",
@@ -367,6 +371,8 @@
         "regional_price_on": "Show regional price comparison",
         "cart": "Items in your cart",
         "friends_own": "Items your friends own",
+        "horizontalmediascrolling": "Enable horizontal scrolling of media on app pages with scroll wheel",
+        "supportinfo": "Show support info on store pages",
         "drm": "Show 3rd-party DRM warnings",
         "profile_permalink": "Show permalink on profiles",
         "show_regionwarning": "Show warning if browsing in non-account region",
@@ -399,6 +405,7 @@
         "library_f2p": "Show played free to play games and demos in library",
         "inventory_market_text": "Show Market price on inventory page",
         "send_age_info": "Automatically send age verification when requested",
+        "mp4video": "Force app store videos to be in MP4 format",
         "pcgw": "Show PCGamingWiki links",
         "completionistme": "Show Completionist.me links",
         "protondb": "Show ProtonDB links",
@@ -411,7 +418,6 @@
         "show_youtubegameplay": "Show YouTube gameplay videos on app pages",
         "show_youtubereviews": "Show YouTube review videos on app pages",
         "openinnewtab": "Open external links in a new tab",
-        "showclient": "Show Steam Client links",
         "showbartervg": "Show Barter.vg links",
         "guest": "Items you have a guest pass for",
         "show_steamchart_info": "Show SteamCharts.com info",
@@ -532,7 +538,8 @@
         "nobody": "Nobody has taken a performance survey for this game yet.",
         "take": "Take The Survey"
     },
-    "select": {
+    "dlc_select": {
+        "select": "Select",
         "wishlisted_dlc": "Select Wishlisted DLC",
         "none": "Select None",
         "unowned_dlc": "Select Unowned DLC"
@@ -624,5 +631,7 @@
     "this_version": "This version",
     "original_authors": "Original authors",
     "acknowledgements": "Acknowledgments",
+    "other": "Other",
+    "images": "Images",
     "powered_by": "Powered by __link__"
 }

@@ -224,23 +224,35 @@ let ExtensionLayer = (function() {
 class Messenger {
     static postMessage(msgID, info) {
         window.postMessage({
-            type: "es_" + msgID,
+            type: `es_${msgID}`,
             information: info
         }, window.location.origin);
     }
 
-    static addMessageListener(msgID, fn, once) {
-        let callback = function(e) {
-            if (e.source !== window) { return; }
-            if (!e.data || !e.data.type) { return; }
-            if (e.data.type === "es_" + msgID) {
-                fn(e.data.information);
-                if (once) {
+    // Used for one-time events
+    static onMessage(msgID) {
+        return new Promise(resolve => {
+            let callback = function(e) {
+                if (e.source !== window) { return; }
+                if (!e.data || !e.data.type) { return; }
+                if (e.data.type === `es_${msgID}`) {
+                    resolve(e.data.information);
                     window.removeEventListener("message", callback);
                 }
+            };
+            window.addEventListener("message", callback);
+        });
+    }
+
+    // Used for setting up a listener that should be able to receive more than one callback
+    static addMessageListener(msgID, callback) {
+        window.addEventListener("message", e => {
+            if (e.source !== window) { return; }
+            if (!e.data || !e.data.type) { return; }
+            if (e.data.type === `es_${msgID}`) {
+                callback(e.data.information);
             }
-        };
-        window.addEventListener("message", callback);
+        });
     }
 }
 
@@ -433,19 +445,6 @@ let User = (function(){
     return self;
 })();
 
-
-let StringUtils = (function(){
-
-    let self = {};
-
-    self.clearSpecialSymbols = function(string) {
-        return string.replace(/[\u00AE\u00A9\u2122]/g, "");
-    };
-
-    return self;
-})();
-
-
 let CurrencyRegistry = (function() {
     //   { "id": 1, "abbr": "USD", "symbol": "$", "hint": "United States Dollars", "multiplier": 100, "unit": 1, "format": { "places": 2, "hidePlacesWhenZero": false, "symbolFormat": "$", "thousand": ",", "decimal": ".", "right": false } },
     class SteamCurrency {
@@ -528,28 +527,31 @@ let CurrencyRegistry = (function() {
             return s.join("");
         }
         placeholder() {
-            if (this.format.decimalPlaces == 0 || this.format.hidePlacesWhenZero) {
-                return '0';
+            let str = `1${this.format.groupSeparator}`;
+            let cur = 2;
+            for (let i = 0; i < this.format.groupSize; ++i, ++cur) {
+                str += cur;
             }
-            let placeholder = '0' + this.format.decimalSeparator;
-            for (let i = 0; i < this.format.decimalPlaces; ++i) {
-                placeholder += '0';
+
+            if (this.format.decimalPlaces === 0) {
+                return str;
             }
-            return placeholder;
+
+            str += this.format.decimalSeparator;
+            for (let i = 0; i < this.format.decimalPlaces; ++i, ++cur) {
+                str += cur;
+            }
+            return str;
         }
         regExp() {
-            let regex = ["^("];
-            if (this.format.hidePlacesWhenZero) {
-                regex.push("0|[1-9]\\d*(");
-            } else {
-                regex.push("\\d*(");
-            }
-            regex.push(this.format.decimalSeparator.replace(".", "\\."));
+            let regex = `^(?:\\d{1,${this.format.groupSize}}(?:${StringUtils.escapeRegExp(this.format.groupSeparator)}\\d{${this.format.groupSize}})+|\\d*)`;
+
             if (this.format.decimalPlaces > 0) {
-                regex.push("\\d{0,", this.format.decimalPlaces, "}");
+                regex += `(?:${StringUtils.escapeRegExp(this.format.decimalSeparator)}\\d{0,${this.format.decimalPlaces}})?`;
             }
-            regex.push(")?)$")
-            return new RegExp(regex.join(""));
+            regex += '$';
+            
+            return new RegExp(regex);
         }
     }
 
@@ -635,31 +637,22 @@ let Currency = (function() {
         return null;
     }
 
-    function getCurrencyFromWallet() {
-        return new Promise((resolve, reject) => {
-            ExtensionLayer.runInPageContext(() =>
-                Messenger.postMessage("walletCurrency", typeof g_rgWalletInfo !== 'undefined' && g_rgWalletInfo ? g_rgWalletInfo.wallet_currency : null)
-            );
+    async function getCurrencyFromWallet() {
+        ExtensionLayer.runInPageContext(() =>
+            Messenger.postMessage("walletCurrency", typeof g_rgWalletInfo !== 'undefined' && g_rgWalletInfo ? g_rgWalletInfo.wallet_currency : null)
+        );
 
-            Messenger.addMessageListener("walletCurrency", walletCurrency => {
-                if (walletCurrency !== null) {
-                    resolve(Currency.currencyNumberToType(walletCurrency));
-                } else {
-                    reject();
-                }
-            }, true);
-        });
+        let walletCurrency = await Messenger.onMessage("walletCurrency");
+        if (walletCurrency !== null) {
+            return Currency.currencyNumberToType(walletCurrency);
+        }
     }
 
     async function getStoreCurrency() {
         let currency = getCurrencyFromDom();
 
         if (!currency) {
-            try {
-                currency = await getCurrencyFromWallet();
-            } catch (error) {
-                // no action
-            }
+            currency = await getCurrencyFromWallet();
         }
 
         if (!currency) {
@@ -1758,7 +1751,7 @@ let Highlights = (function(){
 
         parent = parent || document;
 
-        Messenger.addMessageListener("dynamicStoreReady", () => {
+        Messenger.onMessage("dynamicStoreReady").then(() => {
             selectors.forEach(selector => {
                 self.highlightAndTag(parent.querySelectorAll(selector+":not(.es_highlighted)"));
             });
@@ -1770,7 +1763,7 @@ let Highlights = (function(){
                 });
                 observer.observe(searchBoxContents, {childList: true});
             }
-        }, true);
+        });
 
         ExtensionLayer.runInPageContext(() => {
             GDynamicStore.OnReady(() => Messenger.postMessage("dynamicStoreReady"));
@@ -2167,10 +2160,12 @@ let Common = (function(){
 class Downloader {
 
     static download(content, filename) {
-        let a = document.createElement('a');
+        let a = document.createElement("a");
         a.href = URL.createObjectURL(content);
         a.download = filename;
-        a.click();
+
+        // Explicitly dispatching the click event (instead of just a.click()) will make it work in FF
+        a.dispatchEvent(new MouseEvent("click"));
     }
 }
 
@@ -2357,8 +2352,13 @@ class MediaPage {
             }
         }
 
+        this._horizontalScrolling();
+    }
+
+    _horizontalScrolling() {
+
         let strip = document.querySelector("#highlight_strip");
-        if (!strip) { return; }
+        if (!strip || !SyncedStorage.get("horizontalmediascrolling")) { return; }
 
         let lastScroll = Date.now();
         strip.addEventListener("wheel", scrollStrip, false);

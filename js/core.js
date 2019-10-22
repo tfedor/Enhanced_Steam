@@ -1,5 +1,5 @@
 const Info = {
-    'version': "1.3.0",
+    'version': "1.3.1",
 };
 
 /**
@@ -580,7 +580,10 @@ SyncedStorage.defaults = {
     'homepage_tab_selection': "remember",
     'homepage_tab_last': null,
     'send_age_info': true,
+    'mp4video': false,
     'contscroll': true,
+    'horizontalmediascrolling': true,
+    'showsupportinfo': true,
     'showdrm': true,
     'regional_hideworld': false,
     'showinvnav': true,
@@ -603,6 +606,7 @@ SyncedStorage.defaults = {
     'profile_steamrepcn': true,
     'profile_steamgifts': true,
     'profile_steamtrades': true,
+    'profile_bartervg': true,
     'profile_steamrep': true,
     'profile_steamdbcalc': true,
     'profile_astats': true,
@@ -835,6 +839,18 @@ class HTMLParser {
             }
         }
     };
+}
+
+class StringUtils {
+
+    static clearSpecialSymbols(str) {
+        return str.replace(/[\u00AE\u00A9\u2122]/g, "");
+    }
+
+    // https://stackoverflow.com/a/6969486/7162651
+    static escapeRegExp(str) {
+        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
+    }
 }
 
 function sleep(duration) {

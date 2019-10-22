@@ -7,14 +7,14 @@ class Customizer {
     }
 
     _textValue(node) {
-        if (!node) return null;
+        if (!node) return '';
         let str = "";
         for (node = node.firstChild; node; node = node.nextSibling) {
             if (node.nodeType === 3 || (node.nodeType === 1 && node.tagName === "A")) { // Special case for Steam curators
                 str += node.textContent.trim();
             }
         }
-        return str || null;
+        return str;
     };
 
     _updateValue(name, value) {
@@ -169,51 +169,52 @@ class StorePageClass {
     addDrmWarnings() {
         if (!SyncedStorage.get("showdrm")) { return; }
 
-        let gfwl, uplay, securom, tages, stardock, rockstar, kalypso, denuvo, drm;
-
         let text = "";
-        let nodes = document.querySelectorAll("#game_area_description, .game_area_sys_req, #game_area_legal, .game_details, .DRM_notice");
-        for (let i=0, len=nodes.length; i<len; i++) {
-            let node = nodes[i];
+        for (let node of document.querySelectorAll(".game_area_sys_req, #game_area_legal, .game_details")) {
             text += node.innerHTML;
         }
+        let uppercased = text.toUpperCase();
 
         // Games for Windows Live detection
-        if (text.toUpperCase().indexOf("GAMES FOR WINDOWS LIVE") > 0) { gfwl = true; }
-        else if (text.toUpperCase().indexOf("GAMES FOR WINDOWS - LIVE") > 0) { gfwl = true; }
-        else if (text.indexOf("Online play requires log-in to Games For Windows") > 0) { gfwl = true; }
-        else if (text.indexOf("INSTALLATION OF THE GAMES FOR WINDOWS LIVE SOFTWARE") > 0) { gfwl = true; }
-        else if (text.indexOf("Multiplayer play and other LIVE features included at no charge") > 0) { gfwl = true; }
-        else if (text.indexOf("www.gamesforwindows.com/live") > 0) { gfwl = true; }
+        let gfwl =
+               uppercased.includes("GAMES FOR WINDOWS LIVE")
+            || uppercased.includes("GAMES FOR WINDOWS - LIVE")
+            || text.includes("Online play requires log-in to Games For Windows")
+            || text.includes("INSTALLATION OF THE GAMES FOR WINDOWS LIVE SOFTWARE")
+            || text.includes("Multiplayer play and other LIVE features included at no charge")
+            || text.includes("www.gamesforwindows.com/live");
 
         // Ubisoft Uplay detection
-        if (text.toUpperCase().indexOf("CREATION OF A UBISOFT ACCOUNT") > 0) { uplay = true; }
-        else if (text.match(/\buplay/i) && !text.match(/\btuplaydinprosessori/i)) { uplay = true; }
+        let uplay =
+               text.includes("Uplay")
+            || text.includes("Ubisoft Account");
 
         // Securom detection
-        if (text.toUpperCase().indexOf("SECUROM") > 0) { securom = true; }
+        let securom = text.includes("SecuROM");
 
         // Tages detection
-        if (text.match(/\btages\b/i)) { tages = true; }
-        else if (text.match(/angebote des tages/i)) { tages = false; }
-        else if (text.match(/\bsolidshield\b/i)) { tages = true; }
+        let tages =
+                text.match(/\b(tages|solidshield)\b/i)
+            && !text.match(/angebote des tages/i);
 
         // Stardock account detection
-        if (text.indexOf("Stardock account") > 0) { stardock = true; }
+        let stardock = text.includes("Stardock account");
 
         // Rockstar social club detection
-        if (text.indexOf("Rockstar Social Club") > 0) { rockstar = true; }
-        else if (text.indexOf("Rockstar Games Social Club") > 0) { rockstar = true; }
+        let rockstar =
+               text.includes("Rockstar Social Club")
+            || text.includes("Rockstar Games Social Club");
 
         // Kalypso Launcher detection
-        if (text.indexOf("Requires a Kalypso account") > 0) { kalypso = true; }
+        let kalypso = text.includes("Requires a Kalypso account");
 
         // Denuvo Antitamper detection
-        if (text.match(/\bdenuvo\b/i)) { denuvo = true; }
+        let denuvo = text.match(/\bdenuvo\b/i);
 
         // Detect other DRM
-        if (text.indexOf("3rd-party DRM") > 0) { drm = true; }
-        else if (text.match(/No (3rd|third)(-| )party DRM/i)) { drm = false; }
+        let drm =
+                text.includes("3rd-party DRM")
+            && !text.match(/No (3rd|third)[- ]party DRM/i);
 
         let drmNames = [];
         if (gfwl) { drmNames.push('Games for Windows Live'); }
@@ -461,6 +462,27 @@ class StorePageClass {
             })
         });
     }
+
+    forceVideoMP4() {
+        if (!SyncedStorage.get("mp4video")) { return; }
+        let self = this;
+
+        document.querySelectorAll("[data-webm-source]").forEach(function(node) {
+            let mp4 = node.dataset.mp4Source;
+            let mp4hd = node.dataset.mp4HdSource;
+            if (!mp4 || !mp4hd) return;
+
+            node.dataset.webmSource = mp4;
+            node.dataset.webmHdSource = mp4hd;
+
+            let video = node.querySelector("video");
+            if (!video) { return; }
+
+            video.dataset.sdSrc = mp4;
+            video.dataset.hdSrc = mp4hd;
+            self.toggleVideoDefinition(video, false);
+        });
+    }
 }
 
 
@@ -564,10 +586,8 @@ class AppPageClass extends StorePageClass {
 
         this.data = this.storePageDataPromise().catch(err => console.error(err));
         this.appName = document.querySelector(".apphub_AppName").textContent;
-
-        // Required for "Customize" button and YouTube / Steam tabs
-        DOMHelper.insertHomeCSS();
         
+        this.forceVideoMP4();
         this.initHdPlayer();
         this.addWishlistRemove();
         this.addUserNote();
@@ -615,6 +635,7 @@ class AppPageClass extends StorePageClass {
     }
 
     initHdPlayer() {
+        let self = this;
         let movieNode = document.querySelector('div.highlight_movie');
         if (!movieNode) { return; }
 
@@ -648,11 +669,11 @@ class AppPageClass extends StorePageClass {
             ev.stopPropagation();
 
             let videoControl = ev.target.closest('div.highlight_movie').querySelector('video');
-            let playInHD = toggleVideoDefinition(videoControl);
+            let playInHD = self.toggleVideoDefinition(videoControl);
 
             for (let n of document.querySelectorAll('video.highlight_movie')) {
                 if (n === videoControl) continue;
-                toggleVideoDefinition(n, playInHD);
+                self.toggleVideoDefinition(n, playInHD);
             }
 
             LocalStorage.set('playback_hd', playInHD);
@@ -666,7 +687,7 @@ class AppPageClass extends StorePageClass {
             ev.currentTarget.removeEventListener('click', clickInitialHD, false);
             if (!ev.target.classList.contains('es_expanded')) return;
             for (let node of document.querySelectorAll('video.highlight_movie.es_video_sd')) {
-                toggleVideoDefinition(node, true);
+                self.toggleVideoDefinition(node, true);
             }
             LocalStorage.set('playback_hd', true);
         }
@@ -675,9 +696,8 @@ class AppPageClass extends StorePageClass {
             playInHD = LocalStorage.get('playback_hd');
 
             function _addHDControl() {
-                // Add "HD" button and "sd-src" to the video and set definition
+                // Add "HD" button to the video
                 if (videoControl.dataset.hdSrc) {
-                    videoControl.dataset.sdSrc = videoControl.src;
                     let node = videoControl.parentNode.querySelector('.time');
                     if (node) {
                         HTML.afterEnd(node, `<div class="es_hd_toggle"><span>HD</span></div>`);
@@ -698,7 +718,7 @@ class AppPageClass extends StorePageClass {
                 // Toggle fullscreen on video double click
                 videoControl.addEventListener('dblclick', (() => toggleFullscreen(videoControl)), false);
 
-                toggleVideoDefinition(videoControl, playInHD);
+                self.toggleVideoDefinition(videoControl, playInHD);
             }
             setTimeout(_addHDControl, 150);
             // prevents a bug in Chrome which causes videos to stop playing after changing the src
@@ -732,47 +752,47 @@ class AppPageClass extends StorePageClass {
                 Promise.resolve(response).catch(err => console.error(err));
             }
         }
+    }
 
-        function toggleVideoDefinition(videoControl, setHD) {
-            let videoIsVisible = videoControl.parentNode.offsetHeight > 0 && videoControl.parentNode.offsetWidth > 0, // $J().is(':visible')
-                videoIsHD = false,
-                loadedSrc = videoControl.classList.contains("es_loaded_src"),
-                playInHD = LocalStorage.get("playback_hd") || videoControl.classList.contains("es_video_hd");
+    toggleVideoDefinition(videoControl, setHD) {
+        let videoIsVisible = videoControl.parentNode.offsetHeight > 0 && videoControl.parentNode.offsetWidth > 0, // $J().is(':visible')
+            videoIsHD = false,
+            loadedSrc = videoControl.classList.contains("es_loaded_src"),
+            playInHD = LocalStorage.get("playback_hd") || videoControl.classList.contains("es_video_hd");
 
-            let videoPosition = videoControl.currentTime || 0,
-                videoPaused = videoControl.paused;
-            if (videoIsVisible) {
-                videoControl.preload = "metadata";
-                videoControl.addEventListener("loadedmetadata", onLoadedMetaData, false);
-            }
-            function onLoadedMetaData() {
-                this.currentTime = videoPosition;
-                if (!videoPaused && videoControl.play) {
-                    // if response is a promise, suppress any errors it throws
-                    Promise.resolve(videoControl.play()).catch(err => {});
-                }
-                videoControl.removeEventListener('loadedmetadata', onLoadedMetaData, false);
-            }
-
-            if ((!playInHD && typeof setHD === 'undefined') || setHD === true) {
-                videoIsHD = true;
-                videoControl.src = videoControl.dataset.hdSrc;
-            } else if (loadedSrc) {
-                videoControl.src = videoControl.dataset.sdSrc;
-            }
-
-            if (videoIsVisible && loadedSrc) {
-                videoControl.load();
-            }
-
-            videoControl.classList.add("es_loaded_src");
-            videoControl.classList.toggle("es_video_sd", !videoIsHD);
-            videoControl.classList.toggle("es_video_hd", videoIsHD);
-            videoControl.parentNode.classList.toggle("es_playback_sd", !videoIsHD);
-            videoControl.parentNode.classList.toggle("es_playback_hd", videoIsHD);
-
-            return videoIsHD;
+        let videoPosition = videoControl.currentTime || 0,
+            videoPaused = videoControl.paused;
+        if (videoIsVisible) {
+            videoControl.preload = "metadata";
+            videoControl.addEventListener("loadedmetadata", onLoadedMetaData, false);
         }
+        function onLoadedMetaData() {
+            this.currentTime = videoPosition;
+            if (!videoPaused && videoControl.play) {
+                // if response is a promise, suppress any errors it throws
+                Promise.resolve(videoControl.play()).catch(err => {});
+            }
+            videoControl.removeEventListener('loadedmetadata', onLoadedMetaData, false);
+        }
+
+        if ((!playInHD && typeof setHD === 'undefined') || setHD === true) {
+            videoIsHD = true;
+            videoControl.src = videoControl.dataset.hdSrc;
+        } else if (loadedSrc) {
+            videoControl.src = videoControl.dataset.sdSrc;
+        }
+
+        if (videoIsVisible && loadedSrc) {
+            videoControl.load();
+        }
+
+        videoControl.classList.add("es_loaded_src");
+        videoControl.classList.toggle("es_video_sd", !videoIsHD);
+        videoControl.classList.toggle("es_video_hd", videoIsHD);
+        videoControl.parentNode.classList.toggle("es_playback_sd", !videoIsHD);
+        videoControl.parentNode.classList.toggle("es_playback_hd", videoIsHD);
+
+        return videoIsHD;
     }
 
     async storePageDataPromise() {
@@ -1449,7 +1469,7 @@ class AppPageClass extends StorePageClass {
     }
 
     async addSupport() {
-        if (!this.isAppPage() || this.isDlc()) { return; }
+        if (!this.isAppPage() || this.isDlc() || !SyncedStorage.get("showsupportinfo")) { return; }
 
         let cache = LocalStorage.get("support_info", null);
         if (!cache || !cache.expiry || cache.expiry < Date.now()) {
@@ -1784,10 +1804,10 @@ class AppPageClass extends StorePageClass {
         let expandedNode = document.querySelector("#game_area_dlc_expanded");
 
         if (expandedNode) {
-            HTML.afterEnd(expandedNode,  "<div class='game_purchase_action game_purchase_action_bg' style='float: left; margin-top: 4px; margin-bottom: 10px; display: none;' id='es_selected_btn'><div class='btn_addtocart'><a class='btnv6_green_white_innerfade btn_medium'><span>" + Localization.str.add_selected_dlc_to_cart + "</span></a></div></div>");
+            HTML.afterEnd(expandedNode, `<div class='game_purchase_action game_purchase_action_bg' style='float: left; margin-top: 4px; margin-bottom: 10px; display: none;' id='es_selected_btn'><div class='btn_addtocart'><a class='btnv6_green_white_innerfade btn_medium'><span>${Localization.str.add_selected_dlc_to_cart}</span></a></div></div>`);
             HTML.afterEnd(".game_area_dlc_section", "<div style='clear: both;'></div>");
         } else {
-            HTML.afterEnd(".gameDlcBlocks", "<div class='game_purchase_action game_purchase_action_bg' style='float: left; margin-top: 4px; display: none;' id='es_selected_btn'><div class='btn_addtocart'><a class='btnv6_green_white_innerfade btn_medium'><span>" + Localization.str.add_selected_dlc_to_cart + "</span></a></div></div>");
+            HTML.afterEnd(".gameDlcBlocks", `<div class='game_purchase_action game_purchase_action_bg' style='float: left; margin-top: 4px; display: none;' id='es_selected_btn'><div class='btn_addtocart'><a class='btnv6_green_white_innerfade btn_medium'><span>${Localization.str.add_selected_dlc_to_cart}</span></a></div></div>`);
         }
 
         let form = document.createElement("form");
@@ -1798,7 +1818,7 @@ class AppPageClass extends StorePageClass {
 
         let button = document.querySelector("#es_selected_btn");
         button.insertAdjacentElement("beforebegin", form);
-        button.addEventListener("click", function(){
+        button.addEventListener("click", function() {
             document.querySelector("form[name=add_selected_dlc_to_cart]").submit();
         });
 
@@ -1808,7 +1828,7 @@ class AppPageClass extends StorePageClass {
 
                 HTML.afterBegin(
                     dlc.querySelector(".game_area_dlc_name"),
-                    "<input type='checkbox' class='es_dlc_selection' style='cursor: default;' id='es_select_dlc_" + value + "' value='" + value + "'><label for='es_select_dlc_" + value + "' style='background-image: url( " + ExtensionLayer.getLocalUrl("img/check_sheet.png") + ");'></label>");
+                    `<input type='checkbox' class='es_dlc_selection' style='cursor: default;' id='es_select_dlc_${value}' value='${value}'><label for='es_select_dlc_${value}' style='background-image: url(${ExtensionLayer.getLocalUrl("img/check_sheet.png")})'></label>`);
             } else {
                 dlc.querySelector(".game_area_dlc_name").style.marginLeft = "23px";
             }
@@ -1817,33 +1837,38 @@ class AppPageClass extends StorePageClass {
         HTML.afterEnd(".game_area_dlc_section .gradientbg", "<div style='height: 28px; padding-left: 15px; display: none;' id='es_dlc_option_panel'></div>");
 
         HTML.afterBegin("#es_dlc_option_panel",
-            `<div class='es_dlc_option' id='unowned_dlc_check'>${Localization.str.select.unowned_dlc}</div>
-             <div class='es_dlc_option' id='wl_dlc_check'>${Localization.str.select.wishlisted_dlc}</div>
-             <div class='es_dlc_option' id='no_dlc_check'>${Localization.str.select.none}</div>`);
+            `<div class='es_dlc_option' id='unowned_dlc_check'>${Localization.str.dlc_select.unowned_dlc}</div>
+             <div class='es_dlc_option' id='wl_dlc_check'>${Localization.str.dlc_select.wishlisted_dlc}</div>
+             <div class='es_dlc_option' id='no_dlc_check'>${Localization.str.dlc_select.none}</div>`);
 
-        document.querySelector("#unowned_dlc_check").addEventListener("click", function () {
+        let change = new Event("change", {"bubbles": true});
+
+        document.querySelector("#unowned_dlc_check").addEventListener("click", function() {
             let nodes = document.querySelectorAll(".game_area_dlc_section .game_area_dlc_row:not(.ds_owned) input:not(:checked)");
-            for (let i=0, len=nodes.length; i<len; i++) {
-                nodes[i].checked = true;
+            for (let node of nodes) {
+                node.checked = true;
+                node.dispatchEvent(change);
             }
         });
 
-        document.querySelector("#wl_dlc_check").addEventListener("click", function(){
+        document.querySelector("#wl_dlc_check").addEventListener("click", function() {
             let nodes = document.querySelectorAll(".game_area_dlc_section .ds_wishlist input:not(:checked)");
-            for (let i=0, len=nodes.length; i<len; i++) {
-                nodes[i].checked = true;
+            for (let node of nodes) {
+                node.checked = true;
+                node.dispatchEvent(change);
             }
         });
 
-        document.querySelector("#no_dlc_check").addEventListener("click", function(){
+        document.querySelector("#no_dlc_check").addEventListener("click", function() {
             let nodes = document.querySelectorAll(".game_area_dlc_section .game_area_dlc_row input:checked");
-            for (let i=0, len=nodes.length; i<len; i++) {
-                nodes[i].checked = false;
+            for (let node of nodes) {
+                node.checked = false;
+                node.dispatchEvent(change);
             }
         });
 
         HTML.beforeEnd(".game_area_dlc_section .gradientbg",
-            "<a id='es_dlc_option_button'>" + Localization.str.thewordoptions + " ▾</a>");
+            `<a id='es_dlc_option_button'>${Localization.str.dlc_select.select} ▼</a>`);
 
         document.querySelector("#es_dlc_option_button").addEventListener("click", function() {
             document.querySelector("#es_dlc_option_panel")
@@ -1851,15 +1876,16 @@ class AppPageClass extends StorePageClass {
 
             let button = document.querySelector("#es_dlc_option_button");
 
-            button.textContent = (button.textContent.match("▾")
-                ? Localization.str.thewordoptions + " ▴"
-                : Localization.str.thewordoptions + " ▾");
+            button.textContent = (button.textContent.match("▼")
+                ? `${Localization.str.dlc_select.select} ▲`
+                : `${Localization.str.dlc_select.select} ▼`);
         });
 
-        document.querySelector(".game_area_dlc_section").addEventListener("change", function(e){
+        document.querySelector(".game_area_dlc_section").addEventListener("change", function(e) {
             if (!e.target.classList.contains("es_dlc_selection")) { return; }
 
             let cartNode = document.querySelector("#es_selected_cart");
+            cartNode.innerHTML = "";
 
             let inputAction = document.createElement("input");
             inputAction.type = "hidden";
@@ -1875,15 +1901,14 @@ class AppPageClass extends StorePageClass {
             cartNode.appendChild(inputSessionId);
 
             let nodes = document.querySelectorAll(".es_dlc_selection:checked");
-            for (let i=0, len=nodes.length; i<len; i++) {
-                let node = nodes[i];
+            for (let node of nodes) {
 
-                let input = document.createElement("input");
-                input.setAttribute("type", "hidden");
-                input.setAttribute("name", "subid[]");
-                input.setAttribute("value", node.value);
+                let inputSubId = document.createElement("input");
+                inputSubId.setAttribute("type", "hidden");
+                inputSubId.setAttribute("name", "subid[]");
+                inputSubId.setAttribute("value", node.value);
 
-                cartNode.insertAdjacentElement("beforeend", input);
+                cartNode.insertAdjacentElement("beforeend", inputSubId);
             }
 
             let button = document.querySelector("#es_selected_btn");
@@ -2032,9 +2057,9 @@ class AppPageClass extends StorePageClass {
         let nodes = document.querySelectorAll(".purchase_area_spacer");
         HTML.beforeEnd(nodes[nodes.length-1],
             `<div id="es_customize_btn" class="home_actions_ctn">
-                <div class="home_btn home_customize_btn" style="z-index: 13;">${ Localization.str.customize }</div>
+                <div class="home_btn home_customize_btn" style="z-index: 13;">${Localization.str.customize}</div>
                 <div class='home_viewsettings_popup'>
-                    <div class='home_viewsettings_instructions' style='font-size: 12px;'>${ Localization.str.apppage_sections }</div>
+                    <div class="home_viewsettings_instructions" style="font-size: 12px;">${Localization.str.apppage_sections}</div>
                 </div>
             </div>
             <div style="clear: both;"></div>`);
@@ -2614,24 +2639,11 @@ let SearchPageClass = (function(){
     };
 
     function isPriceAbove(node, priceAbove) {
+        let priceValue = CurrencyRegistry.fromType(Currency.storeCurrency).valueOf(node.querySelector(".search_price").lastChild.textContent);
         
-        let priceValues = node.querySelector(".search_price").innerText.replace(/,/g, '.').trim().match(/^\d+\.\d*/gm);
-        let priceString;
-        
-        if (priceValues) {
-            // Discounted price
-            if (priceValues[1]) {
-                priceString = priceValues[1];
-            // Non-discounted
-            } else if (priceValues[0]) {
-                priceString = priceValues[0];
-            }
-        } else {
-            // App without price
-            return false;
-        }
+        if (!priceValue) { return false; } // App without price
 
-        return Number(priceString) > priceAbove;
+        return Number(priceValue) > priceAbove;
     }
 
     function isReviewsBelow(node, reviewsBelow) {
@@ -2664,7 +2676,7 @@ let SearchPageClass = (function(){
         let hidePriceAbove = document.querySelector("#es_notpriceabove.checked");
         let hideReviewsBelow = document.querySelector("#es_noreviewsbelow.checked");
 
-        let priceAbove = Number(document.querySelector("#es_notpriceabove_val").value.replace(',', '.'));
+        let priceAbove = CurrencyRegistry.fromType(Currency.storeCurrency).valueOf(document.querySelector("#es_notpriceabove_val").value);
         let reviewsBelow = Number(document.querySelector("#es_noreviewsbelow_val").value);
         let hideTags = Array.from(document.querySelectorAll("#es_tagfilter_exclude_container > .checked")).map(tag => Math.abs(Number(tag.dataset.value)));
 
@@ -2727,7 +2739,7 @@ let SearchPageClass = (function(){
                         <div class="tab_filter_control_checkbox"></div>
                         <span class="tab_filter_control_label">${Localization.str.price_above}</span>
                         <div>
-                            <input type="text" id="es_notpriceabove_val" class="es_input" pattern="${inputPattern.source}" placeholder=${pricePlaceholder}>
+                            <input type="text" id="es_notpriceabove_val" class="es_input" pattern="${inputPattern.source}" placeholder="${pricePlaceholder}">
                         </div>
                     </div>
                     <div class="tab_filter_control" id="es_noreviewsbelow" data-param="es_hide" data-value="reviews-below" title="${Localization.str.reviews_below_tooltip}">
@@ -2744,8 +2756,9 @@ let SearchPageClass = (function(){
             </div>
         `);
 
-        Messenger.addMessageListener("filtersChanged", filtersChanged, false);
-        Messenger.addMessageListener("priceAbove", priceVal => {
+        Messenger.addMessageListener("filtersChanged", filtersChanged);
+
+        Messenger.onMessage("priceAbove").then(priceVal => {
             if (new RegExp(inputPattern.source.replace(',', '\\.')).test(priceVal)) {
                 if (currency.format.decimalSeparator === ',') {
                     priceVal = priceVal.replace('.', ',');
@@ -2755,11 +2768,11 @@ let SearchPageClass = (function(){
             } else {
                 console.warn("Failed to validate price %s from URL params!", priceVal);
             }
-        }, true);
-        Messenger.addMessageListener("reviewsBelow", reviewsVal => {
+        });
+        Messenger.onMessage("reviewsBelow").then(reviewsVal => {
             document.getElementById("es_noreviewsbelow_val").value = reviewsVal;
             Messenger.postMessage("reviewsValueChanged");
-        }, true);
+        });
 
         // TODO(tomas.fedor) Can we somehow simplify this monstrosity? E.g. update URL on our end?
         // Thrown together from sources of searchpage.js
@@ -2958,7 +2971,7 @@ let SearchPageClass = (function(){
                                         continue;
                                     }
                                     filter = $J(".tab_filter_control[data-value=price-above]");
-                                    Messenger.addMessageListener("priceValueChanged", () => filter.click(), true);
+                                    Messenger.onMessage("priceValueChanged").then(filter.click);
                                     Messenger.postMessage("priceAbove", priceValue);
                                     continue;
                                 } else if (filterValue.startsWith("reviews-below")) {
@@ -2968,7 +2981,7 @@ let SearchPageClass = (function(){
                                         continue;
                                     }
                                     filter = $J(".tab_filter_control[data-value=reviews-below]");
-                                    Messenger.addMessageListener("reviewsValueChanged", () => filter.click(), true);
+                                    Messenger.onMessage("reviewsValueChanged").then(filter.click);
                                     Messenger.postMessage("reviewsBelow", reviewsValue);
                                     continue;
                                 } else {
@@ -2981,8 +2994,8 @@ let SearchPageClass = (function(){
                     }
                 }
 
-                Messenger.addMessageListener("priceChanged", forcedState => updateURL($J(".tab_filter_control[id='es_notpriceabove']"), forcedState), false);
-                Messenger.addMessageListener("reviewsChanged", forcedState => updateURL($J(".tab_filter_control[id='es_noreviewsbelow']"), forcedState), false);
+                Messenger.addMessageListener("priceChanged", forcedState => updateURL($J(".tab_filter_control[id='es_notpriceabove']"), forcedState));
+                Messenger.addMessageListener("reviewsChanged", forcedState => updateURL($J(".tab_filter_control[id='es_noreviewsbelow']"), forcedState));
             });
         }`);
 
@@ -3043,7 +3056,7 @@ let SearchPageClass = (function(){
                 } else {
                     params.delete("es_hide");
                 }
-                linkElement.href = linkElement.href.substring(0, linkElement.href.indexOf('?') + 1) + params.toString();
+                linkElement.href = linkElement.href.substring(0, linkElement.href.indexOf('?') + 1) + Array.from(params.entries(), ([key, val]) => `${key}=${val}`).join('&'); // Encoding is done by Steam, see #568
             }
         }
 
@@ -3183,21 +3196,27 @@ let WishlistPageClass = (function(){
 
         observer.observe(container, { 'childList': true, });
 
-        let throbber = document.querySelector("#throbber");
-        let wishlistLoaded = function() {
-            if (throbber.style.display !== "none") { return; }
-            instance.addStatsArea();
-            instance.addExportWishlistButton();
-            instance.addEmptyWishlistButton();
-            instance.addUserNotesHandlers();
-            instance.addRemoveHandler();
+        let wishlistLoaded = () => {
+            this.addStatsArea();
+            this.addExportWishlistButton();
+            this.addEmptyWishlistButton();
+            this.addUserNotesHandlers();
+            this.addRemoveHandler();
         };
         
-        if (throbber.style.display === "none") { 
+        if (document.querySelector("#throbber").style.display === "none") {
             wishlistLoaded();
         } else {
-            observer = new MutationObserver(wishlistLoaded);
-            observer.observe(throbber, { "attributes": true });
+            Messenger.onMessage("wishlistLoaded").then(wishlistLoaded);
+
+            ExtensionLayer.runInPageContext(() => {
+                $J(document).ajaxSuccess((e, xhr, settings) => {
+                    let url = new URL(settings.url);
+                    if (url.origin + url.pathname === `${g_strWishlistBaseURL}wishlistdata/` && g_Wishlist.nPagesToLoad === g_Wishlist.nPagesLoaded) {
+                        Messenger.postMessage("wishlistLoaded");
+                    }
+                });
+            });
         }
     }
 
@@ -3341,7 +3360,7 @@ let WishlistPageClass = (function(){
             });
         }
 
-        Messenger.addMessageListener("emptyWishlist", () => {
+        Messenger.onMessage("emptyWishlist").then(() => {
             let wishlistData = HTMLParser.getVariableFromDom("g_rgWishlistData", "array");
             if (!wishlistData) { return; }
 
@@ -3349,7 +3368,7 @@ let WishlistPageClass = (function(){
                 DynamicStore.clear();
                 location.reload();
             });
-        }, true);
+        });
     }
 
     class WishlistExporter {
@@ -3396,88 +3415,69 @@ let WishlistPageClass = (function(){
             return result.join("\n");
         }
     }
+    WishlistExporter.method = Object.freeze({"download": Symbol("Download"), "copyToClipboard": Symbol("Copy to clipboard")});
 
-    WishlistPageClass.prototype.showExportModalDialog = function() {
+    /**
+     * Using Valve's CModal API here is very hard, since, when trying to copy data to the clipboard, it has to originate from
+     * a short-lived event handler for a user action.
+     * Since we'd use our Messenger class to pass information in between these two contexts, we would "outrange" this specific event
+     * handler, resulting in a denial of access to the clipboard function.
+     * This could be circumvented by adding the appropriate permissions, but doing so would prompt users to explicitly accept the changed
+     * permissions on an update.
+     * 
+     * If we don't use the Messenger, we'd have to move the whole handler part (including WishlistExporter) to
+     * the page context side.
+     * 
+     * Final solution is to query the action buttons of the dialog and adding some extra click handlers on the content script side.
+     * These handlers are using a capture, so that the dialog elements will still be existent at the time of the invocation.
+     */
+    WishlistPageClass.prototype.showExportModalDialog = function(appInfo) {
 
         let exportStr = Localization.str.export;
 
         ExtensionLayer.runInPageContext(`function() {
-            let options = {};
-            window.AS_WishlistExportModal = ShowConfirmDialog(
+            ShowConfirmDialog(
                 "${exportStr.wishlist}",
-                "<div id='es_export_form'></div>",
-                "${Localization.str.save}",
-                "${Localization.str.cancel}"
+                \`<div id='es_export_form'>
+                    <div class="es-wexport">
+                    <h2>${exportStr.type}</h2>
+                    <div>
+                        <label class="es-wexport__label"><input type="radio" name="es_wexport_type" value="text" checked> ${exportStr.text}</label>
+                        <label class="es-wexport__label"><input type="radio" name="es_wexport_type" value="json"> JSON</label>
+                    </div>
+                    </div>
+                
+                    <div class="es-wexport es-wexport__format">
+                        <h2>${exportStr.format}</h2>
+                        <div>
+                            <input type="text" id="es-wexport-format" class="es-wexport__input" value="%title%"><br>
+                            <div class="es-wexport__symbols">%title%, %id%, %appid%, %url%, %release_date%, %type%, %note%</div>
+                        </div>
+                    </div>
+                </div>\`,
+                "${exportStr.download}",
+                null, // use default "Cancel"
+                "${exportStr.copy_clipboard}"
             );
         }`);
 
-        let formNode = document.querySelector("#es_export_form");
+        let [ dlBtn, copyBtn ] = document.querySelectorAll(".newmodal_buttons > .btn_medium");
 
-        HTML.inner(
-            formNode,
-            `<div class="es-wexport">
-                <h2>${exportStr.type}</h2>
-                <div>
-                    <label class="es-wexport__label"><input type="radio" name="es_wexport_type" value="text" checked> ${exportStr.text}</label>
-                    <label class="es-wexport__label"><input type="radio" name="es_wexport_type" value="json"> JSON</label>
-                </div>
-            </div>
-        
-            <div class="es-wexport es-wexport__format">
-                <h2>${exportStr.format}</h2>
-                <div>
-                    <input type="text" id="es-wexport-format" class="es-wexport__input" value="%title%"><br>
-                    <div class="es-wexport__symbols">%title%, %id%, %appid%, %url%, %release_date%, %type%, %note%</div>
-                </div>
-            </div>`);
+        dlBtn.classList.remove("btn_green_white_innerfade");
+        dlBtn.classList.add("btn_darkblue_white_innerfade");
+
+        dlBtn.addEventListener("click", () => exportWishlist(WishlistExporter.method.download), true);
+        copyBtn.addEventListener("click", () => exportWishlist(WishlistExporter.method.copyToClipboard), true);
 
         let format = document.querySelector(".es-wexport__format");
         for (let el of document.getElementsByName("es_wexport_type")) {
             el.addEventListener("click", e => format.style.display = e.target.value === "json" ? "none" : '');
         }
 
-        let buttonsNode = formNode.closest(".newmodal_content").querySelector(".newmodal_buttons");
-
-        HTML.inner(buttonsNode,
-            `<div id="as_export_download" class="btn_green_white_innerfade btn_medium"><span>${exportStr.download}</span></div>
-             <div id="as_export_copy" class="btn_green_white_innerfade btn_medium"><span>${exportStr.copy_clipboard}</span></div>
-             <div id="as_export_cancel" class="btn_grey_white_innerfade btn_medium"><span>${Localization.str.cancel}</span></div>`);
-
-        // events
-
-        function dismissModal() {
-            ExtensionLayer.runInPageContext(`function() { 
-                window.AS_WishlistExportModal.Dismiss();
-                window.AS_WishlistExportModal = null;
-            }`);
-        }
-
-        function handleExport(method) {
+        function exportWishlist(method) {
             let type = document.querySelector("input[name='es_wexport_type']:checked").value;
-            let format = encodeURIComponent(document.querySelector("#es-wexport-format").value);
-            ExtensionLayer.runInPageContext(`function() { 
-                Messenger.postMessage("exportWishlist", {format: "${format}", method: "${method}", type: "${type}", appInfo: g_rgAppInfo});
-            }`);
-            dismissModal();
-        }
+            let format = document.querySelector("#es-wexport-format").value;
 
-        document.querySelector("#as_export_download").addEventListener("click", function() { handleExport("download"); });
-        document.querySelector("#as_export_copy").addEventListener("click", function() { handleExport("clipboard"); });
-        document.querySelector("#as_export_cancel").addEventListener("click", dismissModal);
-
-        // handle messages
-
-        Messenger.addMessageListener("exportWishlist", (data) => {
-            let appInfo = data.appInfo;
-            if (!appInfo) { return; }
-            let type = data.type;
-            let method = data.method;
-            let format = decodeURIComponent(data.format);
-
-            exportWishlist(appInfo, type, method, format);
-        }, true);
-
-        function exportWishlist(appInfo, type, method, format) {
             let wishlist = new WishlistExporter(appInfo);
 
             let result = "";
@@ -3493,10 +3493,10 @@ let WishlistPageClass = (function(){
                 filetype = "text/plain";
             }
 
-            if (method === "clipboard") {
+            if (method === WishlistExporter.method.copyToClipboard) {
                 Clipboard.set(result);
-            } else if (method === "download") {
-                Downloader.download(new Blob([result], { type : filetype+";charset=UTF-8" }), filename);
+            } else if (method === WishlistExporter.method.download) {
+                Downloader.download(new Blob([result], { type: `${filetype};charset=UTF-8` }), filename);
             }
         }
     };
@@ -3504,17 +3504,17 @@ let WishlistPageClass = (function(){
     WishlistPageClass.prototype.addExportWishlistButton = function() {
         HTML.afterBegin("#cart_status_data", "<div class='es-wbtn' id='es_export_wishlist'><div>" + Localization.str.export.wishlist + "</div></div>");
 
-        let that = this;
-        document.querySelector("#es_export_wishlist").addEventListener("click", function() {
-            that.showExportModalDialog();
+        document.querySelector("#es_export_wishlist").addEventListener("click", () => {
+            Messenger.onMessage("appInfo").then(appInfo => this.showExportModalDialog(appInfo));
+            ExtensionLayer.runInPageContext(() => Messenger.postMessage("appInfo", g_rgAppInfo));
         });
     };
 
     function getNodesBelow(node) {
         let nodes = Array.from(document.querySelectorAll(".wishlist_row"));
 
-        // Limit the selection to the rows that are positioned below the row (including the row itself) where the price is being shown
-        return nodes.filter(row => parseInt(row.style.top, 10) >= parseInt(node.style.top, 10));
+        // Limit the selection to the rows that are positioned below the row (not including the row itself) where the price is being shown
+        return nodes.filter(row => parseInt(row.style.top, 10) > parseInt(node.style.top, 10));
     }
 
     WishlistPageClass.prototype.addPriceHandler = function(node) {
@@ -3533,7 +3533,7 @@ let WishlistPageClass = (function(){
                     prices.priceCallback = (type, id, contentNode) => {
                         node.insertAdjacentElement("beforeend", contentNode);
                         let priceNode = node.querySelector(".itad-pricing");
-                        priceNode.style.top = -priceNode.getBoundingClientRect().height + "px";
+                        priceNode.style.bottom = -priceNode.getBoundingClientRect().height + "px";
                         resolve();
                     };
                     prices.load();
@@ -3606,7 +3606,7 @@ let WishlistPageClass = (function(){
             })
         );
 
-        Messenger.addMessageListener("removeWlEntry", removedEntry => userNotes.deleteNote(removedEntry), false);
+        Messenger.addMessageListener("removeWlEntry", removedEntry => userNotes.deleteNote(removedEntry));
     };
 
     return WishlistPageClass;
@@ -3649,7 +3649,7 @@ let UserNotes = (function(){
             deferred.always(() => Modal.Dismiss());
 
             Modal.m_fnBackgroundClick = () => {
-                Messenger.addMessageListener("noteSaved", () => Modal.Dismiss(), true);
+                Messenger.onMessenge("noteSaved").then(Modal.Dismiss);
                 Messenger.postMessage("backgroundClick");
             }
 
@@ -3672,10 +3672,10 @@ let UserNotes = (function(){
 
         document.addEventListener("click", clickListener);
 
-        Messenger.addMessageListener("backgroundClick", () => {
+        Messenger.onMessage("backgroundClick").then(() => {
             onNoteUpdate.apply(null, saveNote());
             Messenger.postMessage("noteSaved");
-        }, true);
+        });
 
         function clickListener(e) {
             if (e.target.closest(".es_note_modal_submit")) {
