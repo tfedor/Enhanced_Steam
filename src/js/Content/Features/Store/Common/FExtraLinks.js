@@ -1,8 +1,5 @@
+import {HTML, HTMLParser, Localization, SyncedStorage} from "../../../../modulesCore";
 import {ContextType, Feature} from "../../../modulesContent";
-
-import {HTML} from "../../../../Core/Html/Html";
-import {Localization} from "../../../../Core/Localization/Localization";
-import {SyncedStorage} from "../../../../Core/Storage/SyncedStorage";
 
 export default class FExtraLinks extends Feature {
 
@@ -29,7 +26,7 @@ export default class FExtraLinks extends Feature {
 
         return this._node !== null && (
 
-            // Even if the user doesn't want to see any extra links, the place of the native links is changed (see _moveExtraLinks)
+            // Even if the user doesn't want to see any extra links, they may want to change the placement of native links (see _moveExtraLinks)
             this._type === "app"
 
             // Preferences for links shown on all pages
@@ -45,11 +42,13 @@ export default class FExtraLinks extends Feature {
 
             this._moveExtraLinks();
 
+            const appName = HTMLParser.clearSpecialSymbols(this.context.appName);
+
             if (SyncedStorage.get("showyoutube")) {
                 HTML.afterBegin(this._node,
                     this._getRightColLinkHtml(
                         "youtube_btn",
-                        `https://www.youtube.com/results?search_query=${encodeURIComponent(this.context.appName)}`,
+                        `https://www.youtube.com/results?search_query=${encodeURIComponent(appName)}`,
                         Localization.str.view_on_website.replace("__website__", "YouTube")
                     ));
             }
@@ -58,12 +57,10 @@ export default class FExtraLinks extends Feature {
                 HTML.afterBegin(this._node,
                     this._getRightColLinkHtml(
                         "twitch_btn",
-                        `https://www.twitch.tv/directory/game/${encodeURIComponent(this.context.appName.replace(/(\u2122)/g, "")
-                            .replace(/(\xAE)/g, ""))}`,
+                        `https://www.twitch.tv/directory/game/${encodeURIComponent(appName)}`,
                         Localization.str.view_on_website.replace("__website__", "Twitch")
                     ));
             }
-
 
             if (SyncedStorage.get("showpcgw")) {
                 HTML.afterBegin(this._node,
@@ -139,6 +136,7 @@ export default class FExtraLinks extends Feature {
     }
 
     _moveExtraLinks() {
+        if (!SyncedStorage.get("moveextralinks")) { return; }
 
         const usefulLinks = this._node.parentNode;
         usefulLinks.classList.add("es_useful_link");
