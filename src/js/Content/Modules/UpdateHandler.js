@@ -97,6 +97,13 @@ class UpdateHandler {
             SyncedStorage.remove("showfakeccwarning");
             SyncedStorage.remove("hideaboutlinks");
         }
+
+        if (oldVersion.isSameOrBefore("2.0.1")) {
+            const {steamchart, steamspy, surveys} = SyncedStorage.get("customize_apppage");
+            SyncedStorage.set("show_steamchart_info", steamchart);
+            SyncedStorage.set("show_steamspy_info", steamspy);
+            SyncedStorage.set("show_survey_info", surveys);
+        }
     }
 }
 

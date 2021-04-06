@@ -1,10 +1,14 @@
 import {Feature} from "../../../Modules/Feature/Feature";
-import {HTML, Localization} from "../../../../modulesCore";
+import {HTML, Localization, SyncedStorage} from "../../../../modulesCore";
 
 export default class FSurveyData extends Feature {
 
     async checkPrerequisites() {
-        if (this.context.isVideo() || this.context.isDlc() || !document.querySelector(".sys_req")) { return false; }
+        if (!SyncedStorage.get("show_survey_info")
+            || this.context.isDlc()
+            || !document.querySelector(".sys_req")) {
+            return false;
+        }
 
         const result = await this.context.data;
         if (result && result.survey) {

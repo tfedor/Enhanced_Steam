@@ -102,6 +102,7 @@ export default {
     "showsteamcardexchange": "options.store_steamcards",
     "show_steamchart_info": "options.show_steamchart_info",
     "show_steamspy_info": "options.show_steamspy_info",
+    "show_survey_info": "options.show_survey_info",
 
     // store general
     "showusernotes": "options.show_user_notes",
