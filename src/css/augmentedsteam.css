@@ -2547,6 +2547,21 @@ label[for="show_common_games"] {
 }
 
 /***************************************
+ * User profiles
+ * FPinnedBackground
+ **************************************/
+.as_profile_static_background {
+  position: fixed;
+  min-width: 100%;
+  min-height: 100%;
+  width: auto;
+  height: auto;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-size: auto;
+}
+
+/***************************************
  * addCustomTags() to community guides
  *
  **************************************/
