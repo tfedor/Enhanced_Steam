@@ -12,6 +12,7 @@ import FCustomStyle from "./FCustomStyle";
 import FTwitchShowcase from "./FTwitchShowcase";
 import FChatDropdownOptions from "./FChatDropdownOptions";
 import FViewSteamId from "./FViewSteamId";
+import FProfileStatus from "./FProfileStatus";
 
 export class CProfileHome extends CCommunityBase {
 
@@ -38,6 +39,7 @@ export class CProfileHome extends CCommunityBase {
         ProfileData.promise();
 
         super(ContextType.PROFILE_HOME, [
+            FProfileStatus,
             FCommunityProfileLinks,
             FWishlistProfileLink,
             FSupporterBadges,

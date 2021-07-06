@@ -1,4 +1,13 @@
 {
+    "profile_status": {
+        "streaming": "Currently Streaming",
+        "busy": "Currently Busy",
+        "away": "Currently Away",
+        "snooze": "Currently Snoozing",
+        "looking_to_trade": "Looking to Trade",
+        "looking_to_play": "Looking to Play",
+        "shared_by": "Shared By"
+    },
     "calc_workshop_size": {
         "file_size": "File size __size__",
         "finished": "Finished",
@@ -579,6 +588,8 @@
         "profile_showcase_twitch": "Add a showcase for Twitch.tv if there is a link",
         "profile_showcase_own_twitch": "... including your own profile",
         "profile_showcase_twitch_profileonly": "... only if the link is in the Profile Summary",
+        "profile_accurate_status": "Show more accurate status (busy, snoozing, streaming, ...)",
+        "profile_shared_game": "Display lender, if user is playing a family shared game",
         "lang": {
             "english": "English",
             "brazilian": "Portuguese-Brazil",

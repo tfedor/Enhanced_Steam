@@ -13,7 +13,7 @@ export default class FInGameStoreLink extends Feature {
         const ingameNode = document.querySelector("input[name=ingameAppID]");
         if (!ingameNode || !ingameNode.value) { return; }
 
-        const node = document.querySelector(".profile_in_game_name");
+        const node = document.querySelector(".profile_in_game_name:not(.es_shared_by");
 
         HTML.inner(node,
             `<a href="//store.steampowered.com/app/${ingameNode.value}" target="_blank">
